@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="general.title">Bestiary Arena Mod Loader</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <h1 data-i18n="general.title">Bestiary Arena Mod Loader</h1>
+    <div class="language-selector">
+      <label for="language-select" data-i18n="language.selectLabel">Idioma</label>
+      <select id="language-select">
+        <option value="pt-BR" data-i18n="language.pt-BR">Português</option>
+        <option value="en-US" data-i18n="language.en-US">Inglês</option>
+      </select>
+    </div>
+  </header>
+  
+  <main>
+    <section id="local-mods">
+      <h2 data-i18n="sections.localMods">Mods Locais</h2>
+      <div id="local-mods-container">
+        <div class="empty-message" data-i18n="messages.noLocalMods">Nenhum mod local disponível</div>
+      </div>
+    </section>
+    
+    <section id="add-script">
+      <h2 data-i18n="sections.addScript">Adicionar Script</h2>
+      <form id="hash-form">
+        <div class="form-group">
+          <label for="hash-input" data-i18n="form.hashLabel">Hash do Script (Gist)</label>
+          <input type="text" id="hash-input" data-i18n-placeholder="form.hashPlaceholder" placeholder="Insira o hash do Gist" required>
+        </div>
+        <div class="form-group">
+          <label for="name-input" data-i18n="form.nameLabel">Nome do Script (opcional)</label>
+          <input type="text" id="name-input" data-i18n-placeholder="form.namePlaceholder" placeholder="Nome para identificação">
+        </div>
+        <button type="submit" class="primary-button" data-i18n="form.addButton">Adicionar</button>
+      </form>
+    </section>
+    
+    <section id="active-scripts">
+      <h2 data-i18n="sections.activeScripts">Scripts Ativos</h2>
+      <div id="scripts-container">
+        <div class="empty-message" data-i18n="messages.noScripts">Nenhum script adicionado</div>
+      </div>
+    </section>
+    
+    <section id="debug-section" style="border-top: 1px solid #313244; margin-top: 20px; padding-top: 10px;">
+      <h2>Debug Tools</h2>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <button id="reload-mods-btn" class="secondary-button">Reload Local Mods</button>
+        <button id="check-api-btn" class="secondary-button">Check BestiaryModAPI</button>
+        <button id="log-storage-btn" class="secondary-button">Log Storage Contents</button>
+      </div>
+    </section>
+  </main>
+  
+  <footer>
+    <p><span data-i18n="general.version">Versão</span> 1.0.0</p>
+  </footer>
+  
+  <script type="module" src="popup.js"></script>
+</body>
+</html> 

@@ -1,0 +1,93 @@
+{
+  "general": {
+    "title": "Bestiary Arena Mod Loader",
+    "version": "Versão"
+  },
+  "sections": {
+    "localMods": "Mods Locais",
+    "addScript": "Adicionar Script",
+    "activeScripts": "Scripts Ativos"
+  },
+  "form": {
+    "hashLabel": "Hash do Script (Gist)",
+    "hashPlaceholder": "Insira o hash do Gist",
+    "nameLabel": "Nome do Script (opcional)",
+    "namePlaceholder": "Nome para identificação",
+    "addButton": "Adicionar"
+  },
+  "messages": {
+    "noLocalMods": "Nenhum mod local disponível",
+    "noScripts": "Nenhum script adicionado",
+    "errorLoadingScripts": "Erro ao carregar scripts",
+    "errorLoadingMods": "Erro ao carregar mods locais",
+    "errorCommunication": "Erro ao comunicar com a extensão",
+    "unknownError": "Erro desconhecido"
+  },
+  "controls": {
+    "active": "Ativo",
+    "edit": "Editar",
+    "remove": "Remover",
+    "execute": "Executar",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "apply": "Aplicar",
+    "ok": "OK",
+    "close": "Fechar"
+  },
+  "language": {
+    "selectLabel": "Idioma",
+    "pt-BR": "Português",
+    "en-US": "Inglês"
+  },
+  "mods": {
+    "turbo": {
+      "title": "Modo Turbo",
+      "enabled": "Modo turbo ativado!",
+      "disabled": "Modo turbo desativado!",
+      "buttonEnable": "Ativar Turbo",
+      "buttonDisable": "Desativar Turbo",
+      "configTitle": "Configurações de Turbo",
+      "speedFactor": "Fator de aceleração:",
+      "display": {
+        "on": "Turbo: ON",
+        "off": "Turbo: OFF",
+        "withTicks": "Turbo: ON | Ticks: {ticks}"
+      }
+    },
+    "grid": {
+      "title": "Grid de Posições",
+      "buttonShow": "Mostrar Grid",
+      "buttonHide": "Ocultar Grid",
+      "configTitle": "Configurações do Grid",
+      "rows": "Linhas",
+      "columns": "Colunas",
+      "thickness": "Espessura",
+      "color": "Cor"
+    },
+    "animations": {
+      "title": "Skip de Animações",
+      "enabled": "Animações desativadas!",
+      "disabled": "Animações ativadas!",
+      "buttonEnable": "Pular Animações",
+      "buttonDisable": "Ativar Animações",
+      "configTitle": "Configurações de Animações",
+      "combatOnly": "Pular animações apenas em combate"
+    },
+    "tierList": {
+      "title": "Lista de Tier de Monstros",
+      "tierPrefix": "Tier",
+      "allTopRank": "Você já está no topo em todas as salas!"
+    },
+    "highscore": {
+      "title": "Oportunidades de Melhoria",
+      "yourScore": "Seu {score}",
+      "topScore": "Melhor {score}",
+      "gainFormat": "+{ticks} ticks ({percent}%)",
+      "byPlayer": "por {player}",
+      "totalScore": "Total",
+      "theoreticalMinimum": "Mínimo teórico",
+      "possibleGain": "Ganho possível",
+      "ticksSuffix": "ticks"
+    }
+  }
+} 

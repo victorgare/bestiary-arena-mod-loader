@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "Bestiary Arena Mod Loader",
+  "version": "1.0.0",
+  "description": "Enhance your Bestiary Arena gaming experience with custom mods! This extension allows you to easily load and manage community-created mods via GitHub Gist hashes or local files.",
+  "icons": {
+    "16": "assets/icons/icon-16.png",
+    "48": "assets/icons/icon-34.png",
+    "128": "assets/icons/icon-128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "assets/icons/icon-16.png",
+      "34": "assets/icons/icon-34.png",
+      "128": "assets/icons/icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://bestiaryarena.com/*"],
+      "js": ["content/injector.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "permissions": [
+    "storage",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://gist.githubusercontent.com/*",
+    "*://bestiaryarena.com/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "content/client.js", 
+        "content/local_mods.js", 
+        "assets/icons/*", 
+        "assets/js/*",
+        "assets/locales/*", 
+        "mods/*"
+      ],
+      "matches": ["*://bestiaryarena.com/*"]
+    }
+  ]
+} 
