@@ -95,7 +95,7 @@ async function initLocalMods() {
     name: mod.name,
     displayName: mod.key,
     isLocal: true,
-    enabled: true
+    enabled: false // Default to disabled and let the extension set the real state
   }));
   
   console.log('Local mods initialized:', localMods);
@@ -108,28 +108,23 @@ async function initLocalMods() {
       mods: localMods
     }
   }, '*');
-
-  console.log('Setting up auto-execution of enabled mods...');
-  setTimeout(() => {
-    console.log('Now attempting to auto-execute enabled mods');
-    localMods.forEach(mod => {
-      if (mod.enabled) {
-        console.log(`Auto-executing local mod: ${mod.name}`);
-        executeLocalMod(mod.name).catch(error => {
-          console.error(`Error auto-executing mod ${mod.name}:`, error);
-        });
-      }
-    });
-  }, 2000);
 }
 
 async function executeLocalMod(modName) {
+  // If already executed, log and exit (but allow a forced re-execution if needed)
   if (executedMods[modName]) {
     console.log(`Local mod ${modName} was already executed, skipping`);
     return;
   }
 
   console.log(`Executing local mod: ${modName}`);
+  
+  // Ensure the mod base URL is set
+  if (!modBaseUrl) {
+    console.error(`Cannot execute mod ${modName}: mod base URL not set yet`);
+    return;
+  }
+  
   const content = await getLocalModContent(modName);
   
   if (!content) {
@@ -144,7 +139,7 @@ async function executeLocalMod(modName) {
       
       // Setup a more robust retry mechanism
       let retryCount = 0;
-      const maxRetries = 10;
+      const maxRetries = 20; // Increase max retries
       const checkAndExecute = () => {
         retryCount++;
         if (window.BestiaryModAPI) {
@@ -152,22 +147,22 @@ async function executeLocalMod(modName) {
           executeLocalMod(modName);
         } else if (retryCount < maxRetries) {
           console.log(`BestiaryModAPI still not available, retry ${retryCount}/${maxRetries}`);
-          setTimeout(checkAndExecute, 500);
+          setTimeout(checkAndExecute, 300); // Slightly faster retries
         } else {
           console.error(`BestiaryModAPI not available after ${maxRetries} retries, giving up on mod: ${modName}`);
         }
       };
       
-      setTimeout(checkAndExecute, 500);
+      setTimeout(checkAndExecute, 300);
       return;
     }
 
-    // Obter configurações salvas para o mod via comunicação com a página
+    // Get saved config for the mod via page communication
     let modConfig = {};
     try {
       const configId = generateMessageId();
       
-      // Solicitar a configuração do mod via mensagem para o injector
+      // Request mod config via message to the injector
       window.postMessage({
         from: 'BESTIARY_CLIENT',
         id: configId,
@@ -177,7 +172,7 @@ async function executeLocalMod(modName) {
         }
       }, '*');
 
-      // Como não podemos usar Promise diretamente, simulamos com setTimeout
+      // Execute with a slight delay to allow config to be received
       setTimeout(async () => {
         console.log(`Creating context for local mod: ${modName}`);
         const scriptContext = {
@@ -280,7 +275,7 @@ window.addEventListener('message', function(event) {
           console.error('Test fetch failed:', error);
         });
       
-      // Agora que temos a URL base, podemos inicializar
+      // Now that we have the base URL, we can initialize
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initLocalMods);
       } else {
@@ -291,8 +286,28 @@ window.addEventListener('message', function(event) {
     if (event.data.message && event.data.message.action === 'registerLocalMods') {
       console.log('Received registerLocalMods message:', event.data.message);
       if (event.data.message.mods && Array.isArray(event.data.message.mods)) {
+        // Store the previous mods for reference
+        const previousMods = [...localMods];
+        
+        // Update with new mods
         localMods = event.data.message.mods;
-        console.log('Local mods updated from extension:', localMods);
+        console.log('Local mods updated from extension:', 
+          localMods.map(m => `${m.name}: ${m.enabled}`));
+        
+        // Auto-execute enabled mods after registration, but only if not executed before
+        console.log('Auto-executing enabled mods after registration');
+        localMods.forEach(mod => {
+          // Only execute if enabled and either not executed before or newly enabled
+          const wasEnabledBefore = previousMods.find(m => m.name === mod.name && m.enabled);
+          const wasExecutedBefore = !!executedMods[mod.name];
+          
+          if (mod.enabled && (!wasExecutedBefore || !wasEnabledBefore)) {
+            console.log(`Auto-executing local mod: ${mod.name} (executed before: ${wasExecutedBefore})`);
+            executeLocalMod(mod.name).catch(error => {
+              console.error(`Error auto-executing mod ${mod.name}:`, error);
+            });
+          }
+        });
       }
     }
     
@@ -306,7 +321,7 @@ window.addEventListener('message', function(event) {
     
     if (event.data.response && event.data.id && event.data.id.startsWith('mod_msg_')) {
       console.log('Received response for mod message:', event.data);
-      // Aqui poderíamos processar a resposta de getLocalModConfig
+      // Here we could process the response from getLocalModConfig
     }
   }
 });

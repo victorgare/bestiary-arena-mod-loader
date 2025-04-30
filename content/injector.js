@@ -49,10 +49,15 @@ clientScript.onload = function() {
       localModsInjected = true;
       console.log('Local mods script loaded');
       
-      // Wait again briefly then send mod base URL
-      setTimeout(checkAndSendModBaseUrl, 300);
+      // Wait a bit longer to ensure scripts are fully initialized
+      setTimeout(checkAndSendModBaseUrl, 500);
+      
+      // Let the background script know we're ready for mods
+      chrome.runtime.sendMessage({ action: 'contentScriptReady' }, function(response) {
+        console.log('Background script notified that content script is ready');
+      });
     };
-  }, 300);
+  }, 500);
 };
 
 console.log('Bestiary Arena Mod Loader - Injection sequence initiated');
