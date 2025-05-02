@@ -39,7 +39,32 @@
     }
 
     return new Promise((resolve, reject) => {
+      // Get the base URL for extension resources
+      const getExtensionBaseUrl = () => {
+        // Try to get from window if it was injected by the content script
+        if (window.BESTIARY_EXTENSION_BASE_URL) {
+          return window.BESTIARY_EXTENSION_BASE_URL;
+        }
+        
+        // Fallback: Try to detect from script sources
+        const scriptElements = document.querySelectorAll('script');
+        for (const script of scriptElements) {
+          const src = script.src || '';
+          if (src.includes('bestiary') && src.includes('extension')) {
+            const urlParts = src.split('/');
+            // Remove the last part (filename)
+            urlParts.pop();
+            return urlParts.join('/');
+          }
+        }
+        
+        // Last resort fallback if all else fails
+        console.warn('Could not determine extension base URL, using fallback');
+        return ''; // This will make it use a relative path
+      };
+      
       const script = document.createElement('script');
+      // Use the extension's local copy instead of trying to fetch from bestiaryarena.com
       script.src = chrome.runtime.getURL('assets/js/ui_components.js');
       script.onload = () => {
         console.log('UI Components loaded successfully');
@@ -53,7 +78,20 @@
       };
       script.onerror = (err) => {
         console.error('Error loading UI Components:', err);
-        reject(err);
+        // Create a fallback UI components object if loading fails
+        window.BestiaryUIComponents = {
+          createModal: function() { console.warn("Using fallback modal"); return { close: function() {} }; },
+          createButton: function() { console.warn("Using fallback button"); return document.createElement('button'); },
+          createFullItem: function() { console.warn("Using fallback item"); return document.createElement('div'); },
+          createFullMonster: function() { console.warn("Using fallback monster"); return document.createElement('div'); }
+        };
+        
+        if (window.BestiaryModAPI) {
+          window.BestiaryModAPI.ui = window.BestiaryUIComponents;
+        }
+        
+        // Resolve anyway with fallback components
+        resolve();
       };
       document.head.appendChild(script);
     });
@@ -1380,7 +1418,75 @@
         window.BestiaryModAPI.ui = window.BestiaryUIComponents;
       }
       
-      // ... rest of initialization ...
+      // Setup a function to expose the utility functions to mods
+      const exposeUtilityFunctions = () => {
+        // First try to get the utility functions directly from the window object
+        const hasSerializeBoard = typeof window.$serializeBoard === 'function';
+        const hasReplay = typeof window.$replay === 'function';
+        const hasForceSeed = typeof window.$forceSeed === 'function';
+        const hasRemoveSeed = typeof window.$removeSeed === 'function';
+        const hasConfigureBoard = typeof window.$configureBoard === 'function';
+        
+        // If we have the utility functions directly, use them
+        if (hasSerializeBoard && hasReplay && hasForceSeed && hasRemoveSeed && hasConfigureBoard) {
+          console.log('Utility functions found directly in window object');
+          
+          // Get the maps from window
+          const maps = {
+            regionNamesToIds: window.regionNamesToIds,
+            regionIdsToNames: window.regionIdsToNames,
+            mapNamesToIds: window.mapNamesToIds,
+            mapIdsToNames: window.mapIdsToNames,
+            monsterNamesToGameIds: window.monsterNamesToGameIds,
+            monsterGameIdsToNames: window.monsterGameIdsToNames,
+            equipmentNamesToGameIds: window.equipmentNamesToGameIds,
+            equipmentGameIdsToNames: window.equipmentGameIdsToNames
+          };
+          
+          // Add utility functions to the API
+          window.BestiaryModAPI.utility = {
+            serializeBoard: window.$serializeBoard,
+            replay: window.$replay,
+            forceSeed: window.$forceSeed, 
+            removeSeed: window.$removeSeed,
+            configureBoard: window.$configureBoard,
+            maps: maps
+          };
+          
+          console.log('Utility functions exposed to BestiaryModAPI');
+          
+          // Dispatch an event to notify mods that utility functions are ready
+          document.dispatchEvent(new CustomEvent('utility-api-ready'));
+          return true;
+        }
+        
+        return false;
+      };
+      
+      // Try to expose utility functions immediately if they're already loaded
+      if (!exposeUtilityFunctions()) {
+        // If not loaded yet, wait for the utility-functions-loaded event
+        console.log('Waiting for utility functions to load...');
+        document.addEventListener('utility-functions-loaded', () => {
+          // Set a small timeout to ensure functions are fully available in window scope
+          setTimeout(() => {
+            exposeUtilityFunctions();
+          }, 100);
+        });
+        
+        // Also listen for the window message event as a fallback
+        window.addEventListener('message', function(event) {
+          if (event.data && event.data.type === 'UTILITY_FUNCTIONS_READY') {
+            setTimeout(() => {
+              exposeUtilityFunctions();
+            }, 100);
+          }
+        });
+      }
+      
+      // Signal that the API is ready
+      document.dispatchEvent(new CustomEvent('bestiary-mod-api-ready'));
+      console.log('Bestiary Mod API initialized');
     } catch (error) {
       console.error('Error initializing API:', error);
     }

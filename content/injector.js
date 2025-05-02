@@ -14,20 +14,23 @@ function injectScript(file) {
   return script; // Return the script element
 }
 
-function checkAndSendModBaseUrl() {
-  console.log('Checking if window.localModsAPI is available...');
+// Directly inject important extension URLs into the page
+function injectExtensionURLs() {
+  console.log('Injecting extension URLs into page');
   
-  // Get mods base URL 
+  // Instead of using inline scripts (which violate CSP), use postMessage
+  const extensionBaseUrl = chrome.runtime.getURL('');
   const modsBaseUrl = chrome.runtime.getURL('mods/');
-  console.log('Mod base URL to inject:', modsBaseUrl);
   
-  // Send the mod base URL to the page
+  // Send URLs via postMessage which doesn't violate CSP
   window.postMessage({
     from: 'BESTIARY_EXTENSION',
-    modBaseUrl: modsBaseUrl
+    modBaseUrl: modsBaseUrl,
+    extensionBaseUrl: extensionBaseUrl,
+    action: 'setExtensionURLs'
   }, '*');
   
-  console.log('Mod base URL sent to page');
+  console.log('Extension URLs sent via postMessage');
 }
 
 let clientInjected = false;
@@ -35,11 +38,17 @@ let localModsInjected = false;
 
 console.log('Starting script injection sequence...');
 
-// First inject client.js which contains the API
+// First inject extension URLs directly
+injectExtensionURLs();
+
+// Then inject client.js which contains the API
 const clientScript = injectScript('content/client.js');
 clientScript.onload = function() {
   clientInjected = true;
   console.log('Client script loaded, waiting briefly for API initialization...');
+  
+  // Inject again to ensure URLs are available
+  injectExtensionURLs();
   
   // Wait a short time to ensure API is ready
   setTimeout(() => {
@@ -49,8 +58,8 @@ clientScript.onload = function() {
       localModsInjected = true;
       console.log('Local mods script loaded');
       
-      // Wait a bit longer to ensure scripts are fully initialized
-      setTimeout(checkAndSendModBaseUrl, 500);
+      // Inject URLs once more after both scripts are loaded
+      injectExtensionURLs();
       
       // Let the background script know we're ready for mods
       chrome.runtime.sendMessage({ action: 'contentScriptReady' }, function(response) {
@@ -204,8 +213,6 @@ window.addEventListener('message', function(event) {
     if (window.localModsAPI && typeof window.localModsAPI.executeLocalMod === 'function') {
       console.log(`Forwarding executeLocalMod to localModsAPI: ${message.name}`);
       window.localModsAPI.executeLocalMod(message.name);
-    } else {
-      console.error('localModsAPI not available for executing mod:', message.name);
     }
   }
   

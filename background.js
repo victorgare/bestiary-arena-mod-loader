@@ -74,6 +74,93 @@ async function getLocalMods() {
   }
 }
 
+// Hardcoded gist URL for utility functions
+const UTILITY_GIST_URL = 'https://gist.githubusercontent.com/mathiasbynens/b9c59bc14fb0d2b52e6945aeee99453f/raw';
+
+// Normalize utility script content to ensure proper execution
+function normalizeUtilityScript(scriptContent) {
+  if (!scriptContent) return '';
+  
+  // Remove any existing IIFE wrapping to avoid conflicts
+  let script = scriptContent.trim();
+  if (script.startsWith('(function(') && script.endsWith('})();')) {
+    script = script.slice(script.indexOf('{') + 1, script.lastIndexOf('}'));
+  }
+  
+  // Wrap in try-catch for better error reporting
+  return `
+    try {
+      // Utility functions script from ${UTILITY_GIST_URL}
+      ${script}
+      
+      // Verify required functions are available
+      console.log('Utility script loaded, checking functions:', {
+        serializeBoard: typeof $serializeBoard === 'function',
+        replay: typeof $replay === 'function',
+        forceSeed: typeof $forceSeed === 'function'
+      });
+    } catch (utilityError) {
+      console.error('Error in utility script:', utilityError);
+    }
+  `;
+}
+
+// Function to fetch and cache utility script
+async function fetchUtilityScript() {
+  try {
+    console.log('Fetching utility script from:', UTILITY_GIST_URL);
+    const response = await fetch(UTILITY_GIST_URL);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch utility gist: ${response.status}`);
+    }
+    const scriptContent = await response.text();
+    
+    // Normalize script content
+    const normalizedScript = normalizeUtilityScript(scriptContent);
+    
+    // Store in chrome.storage.local for caching instead of localStorage
+    await chrome.storage.local.set({
+      'utility_script_cache': normalizedScript,
+      'utility_script_timestamp': Date.now()
+    });
+    
+    return normalizedScript;
+  } catch (error) {
+    console.error('Error fetching utility script:', error);
+    
+    // Try to use cached version if available from storage.local
+    const data = await chrome.storage.local.get(['utility_script_cache']);
+    if (data.utility_script_cache) {
+      return data.utility_script_cache;
+    }
+    
+    throw error;
+  }
+}
+
+// Function to get the utility script (with caching)
+async function getUtilityScript() {
+  try {
+    // Get cached data from chrome.storage.local instead of localStorage
+    const data = await chrome.storage.local.get(['utility_script_cache', 'utility_script_timestamp']);
+    const cachedScript = data.utility_script_cache;
+    const timestamp = data.utility_script_timestamp;
+    const cacheAge = timestamp ? (Date.now() - timestamp) : Infinity;
+    
+    // Use cache if it's less than 1 day old
+    if (cachedScript && cacheAge < 86400000) {
+      console.log('Using cached utility script');
+      return cachedScript;
+    }
+    
+    console.log('Cache expired or not found, fetching fresh utility script');
+    return await fetchUtilityScript();
+  } catch (error) {
+    console.error('Error getting utility script:', error);
+    return await fetchUtilityScript();
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'getScript') {
     getScript(message.hash)
@@ -372,6 +459,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     
     sendResponse({ success: true });
     return true;
+  }
+
+  if (message.action === 'getUtilityScript') {
+    getUtilityScript()
+      .then(script => sendResponse({ success: true, script }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true; // Indicate async response
   }
 });
 

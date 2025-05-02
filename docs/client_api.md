@@ -234,6 +234,16 @@ console.log('Player monsters:', playerState.monsters);
 const boardState = globalThis.state.board.getSnapshot().context;
 console.log('Current board:', boardState.boardConfig);
 
+// Access utilities
+const rooms = globalThis.state.utils.ROOMS;
+const regions = globalThis.state.utils.REGIONS;
+const roomSetup = globalThis.state.utils.getBoardMonstersFromRoomId('abbane');
+
+// Listen for new game events
+globalThis.state.board.on('newGame', (event) => {
+  console.log('Game seed:', event.world.RNG.seed);
+});
+
 // Subscribe to state changes
 const unsubscribe = globalThis.state.board.subscribe((state) => {
   console.log('Board state changed:', state);
@@ -242,6 +252,8 @@ const unsubscribe = globalThis.state.board.subscribe((state) => {
 // Unsubscribe when no longer needed
 unsubscribe();
 ```
+
+> **Note**: The game has been upgraded to use XState v3, which may have breaking changes compared to earlier versions. If your mods stop working after an update, check for compatibility issues with the new XState version.
 
 ## Best Practices
 

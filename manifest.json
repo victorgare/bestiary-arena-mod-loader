@@ -24,6 +24,11 @@
       "matches": ["*://bestiaryarena.com/*"],
       "js": ["content/injector.js"],
       "run_at": "document_start"
+    },
+    {
+      "matches": ["*://bestiaryarena.com/*"],
+      "js": ["content/utility_injector.js"],
+      "run_at": "document_idle"
     }
   ],
   "permissions": [
@@ -40,8 +45,11 @@
       "resources": [
         "content/client.js", 
         "content/local_mods.js", 
+        "content/utility_injector.js",
+        "content/ba-sandbox-utils.mjs",
         "assets/icons/*", 
         "assets/js/*",
+        "assets/fonts/*",
         "assets/locales/*", 
         "mods/*"
       ],

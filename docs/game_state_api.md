@@ -377,6 +377,91 @@ const roomNames = globalThis.state.utils.ROOM_NAME;
 
 console.log(roomIds.rkswrs); // "rkswrs"
 console.log(roomNames.rkswrs); // "Sewers"
+
+// Access all room data
+const rooms = globalThis.state.utils.ROOMS;
+
+// Access all region data
+const regions = globalThis.state.utils.REGIONS;
+
+// Get initial board setup for a specific room
+const abbaneSetup = globalThis.state.utils.getBoardMonstersFromRoomId('abbane');
+// Returns an array of board entities:
+[
+    {
+        "type": "file",        // Source type (from file vs custom)
+        "key": "D_9b",         // Unique identifier
+        "tileIndex": 85,       // Position on the board
+        "villain": true,       // Enemy (true) or ally (false)
+        "gameId": 1,           // Monster type ID
+        "direction": "west",   // Facing direction
+        "level": 10,           // Monster level
+        "tier": 0,             // Monster tier
+        "equip": null          // Equipment (null if none)
+    }
+    // More monsters may be included
+]
+```
+
+Room and region data structures are detailed below:
+
+```javascript
+// Room structure example
+const roomExample = {
+  "id": "rkswrs",               // Unique room identifier
+  "file": {
+    "name": "rookgaard-sewers", // File name
+    "data": {
+      "tiles": [                // Map tiles information
+        [
+          {
+            "id": 353,
+            "cropX": 1,
+            "cropY": 0,
+            "bank": 140
+          },
+          {
+            "id": 3994
+          }
+        ]
+      ],
+      "floorBelowTiles": [],    // Lower level tiles
+      "actors": [               // NPCs and enemies
+        {
+          "id": 1,              // Monster ID
+          "direction": "west",  // Facing direction
+          "level": 10           // Level
+        },
+        null
+      ],
+      "hitboxes": [             // Collision information
+        true, true, false, true // etc.
+      ],
+      "blocked": []             // Blocked positions
+    }
+  },
+  "difficulty": 1,              // Room difficulty (1-5)
+  "maxTeamSize": 1,             // Maximum player team size
+  "staminaCost": 3              // Stamina cost to play
+};
+
+// Region structure example
+const regionExample = {
+  "id": "rook",                // Region identifier
+  "minimapOffset": "-330px -1230px", // Position on minimap
+  "rooms": [                   // Rooms in this region (same structure as above)
+    {
+      "id": "rkswrs",
+      "file": {
+        "name": "rookgaard-sewers",
+        "data": {} // Same structure as above
+      },
+      "difficulty": 1,
+      "maxTeamSize": 1,
+      "staminaCost": 3
+    }
+  ]
+};
 ```
 
 ### Monster Data
@@ -473,6 +558,68 @@ globalThis.state.board.send({
 });
 ```
 
+### Custom Board Setup
+
+```javascript
+// Place custom entities on the board
+globalThis.state.board.send({
+  type: "setState",
+  fn: (prev) => ({
+    ...prev,
+    boardConfig: [
+      {
+        type: "custom",
+        nickname: null,
+        equip: { stat: "ap", tier: 2, gameId: 8 },
+        gameId: 9,
+        tier: 3,
+        genes: {
+          hp: 1,
+          magicResist: 1,
+          ad: 1,
+          ap: 1,
+          armor: 1,
+        },
+        villain: true,
+        key: "unique-arbitrary-key",
+        level: 15,
+        direction: "west",
+        tileIndex: 40,
+      },
+      {
+        type: "custom",
+        nickname: "Custom Nickname",
+        equip: { stat: "hp", tier: 2, gameId: 4 },
+        gameId: 8,
+        tier: 3,
+        genes: {
+          hp: 1,
+          magicResist: 1,
+          ad: 1,
+          ap: 1,
+          armor: 1,
+        },
+        villain: false,
+        key: "unique-arbitrary-key-2",
+        level: 999,
+        direction: "east",
+        tileIndex: 23,
+      },
+    ],
+  }),
+});
+```
+
+### Listening for Game Events
+
+```javascript
+// Listen for new game events and access the world object
+globalThis.state.board.on('newGame', (event) => {
+    console.log('New game started with seed:', event.world.RNG.seed);
+    console.log('World object:', event.world);
+});
+```
+
 ### Monitoring Game Timer
 
 ```javascript
@@ -496,6 +643,7 @@ globalThis.state.gameTimer.subscribe((data) => {
 - **Game Updates**: The state structure and API may change with game updates.
 - **Performance**: Be cautious with extensive state monitoring which can impact performance.
 - **Sandbox Mode**: Most state modifications only work properly in sandbox mode to prevent cheating in normal gameplay.
+- **XState Version 3**: The game has been upgraded to use XState v3, which may introduce breaking changes in the API. If your mods stop working, check for compatibility issues.
 
 ## Integration with Client API
 

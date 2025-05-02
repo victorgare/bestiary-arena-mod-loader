@@ -4,14 +4,38 @@ This guide provides comprehensive documentation on creating mods for Bestiary Ar
 
 ## Table of Contents
 
-1. [Introduction](#introduction)
-2. [Getting Started](#getting-started)
-3. [Mod Structure](#mod-structure)
-4. [The API](#the-api)
-5. [UI Components](#ui-components)
-6. [Game State](#game-state)
-7. [Best Practices](#best-practices)
-8. [Examples](#examples)
+- [Bestiary Arena Mod Development Guide](#bestiary-arena-mod-development-guide)
+  - [Table of Contents](#table-of-contents)
+  - [Introduction](#introduction)
+  - [Getting Started](#getting-started)
+    - [Basic Mod Template](#basic-mod-template)
+  - [Mod Structure](#mod-structure)
+    - [Context](#context)
+    - [Lifecycle](#lifecycle)
+  - [The API](#the-api)
+    - [Core Features](#core-features)
+    - [Error Handling](#error-handling)
+    - [Service API](#service-api)
+    - [UI API](#ui-api)
+    - [UI Components API](#ui-components-api)
+    - [Utility API](#utility-api)
+  - [UI Components](#ui-components)
+    - [Modal](#modal)
+    - [Scroll Container](#scroll-container)
+    - [Monster Portrait](#monster-portrait)
+    - [Item Portrait](#item-portrait)
+    - [Room List Item](#room-list-item)
+    - [Navigation Breadcrumb](#navigation-breadcrumb)
+  - [Game State](#game-state)
+  - [Best Practices](#best-practices)
+    - [Performance](#performance)
+    - [User Experience](#user-experience)
+    - [Code Quality](#code-quality)
+    - [Compatibility](#compatibility)
+  - [Examples](#examples)
+    - [Simple Mod: Show Current Monster Count](#simple-mod-show-current-monster-count)
+    - [Advanced Mod: Map Analysis Tool](#advanced-mod-map-analysis-tool)
+  - [Further Resources](#further-resources)
 
 ## Introduction
 
@@ -316,6 +340,38 @@ const breadcrumb = api.ui.components.createNavBreadcrumb({
 });
 ```
 
+### Utility API
+
+The Utility API, made by [Mathias Bynens](https://github.com/mathiasbynens), provides standardized functions for working with game data and state, including functions to convert between IDs and names, and to manipulate board configurations:
+
+```javascript
+// Wait for the utility API to be ready
+document.addEventListener('utility-api-ready', () => {
+  console.log('Utility API is ready');
+  
+  // Serialize the current board
+  const boardData = JSON.parse(api.utility.serializeBoard());
+  console.log('Current board:', boardData);
+  
+  // Replay a board configuration
+  api.utility.replay({
+    region: 'Rookgaard',
+    map: 'Goblin Camp',
+    seed: 12345,
+    board: [/* piece configurations */]
+  });
+  
+  // Force a specific seed for the game
+  api.utility.forceSeed(12345);
+  
+  // Remove a forced seed
+  api.utility.removeSeed();
+  
+  // Access mapping objects
+  const trollId = api.utility.maps.monsterNamesToGameIds.get('troll');
+  console.log('Troll ID:', trollId);
+});
+
 ### Hook API
 
 The hook API allows you to intercept and modify game functionality:
@@ -476,6 +532,51 @@ const rat = globalThis.state.utils.getMonster(1);
 // Get equipment information
 const boots = globalThis.state.utils.getEquipment(1);
 
+// Access all rooms data
+const rooms = globalThis.state.utils.ROOMS;
+
+// Access all regions data
+const regions = globalThis.state.utils.REGIONS;
+
+// Get board configuration for a specific room
+const roomSetup = globalThis.state.utils.getBoardMonstersFromRoomId('abbane');
+
+// Listen for new game events
+globalThis.state.board.on('newGame', (event) => {
+  console.log('New game started with seed:', event.world.RNG.seed);
+  // Access the world object
+  console.log('World object:', event.world);
+});
+
+// Place custom entities on the board
+globalThis.state.board.send({
+  type: "setState",
+  fn: (prev) => ({
+    ...prev,
+    boardConfig: [
+      {
+        type: "custom", // Use "custom" type for full control
+        nickname: "My Monster",
+        equip: { stat: "ap", tier: 2, gameId: 8 },
+        gameId: 9, // Monster type
+        tier: 3,
+        genes: {
+          hp: 1,
+          magicResist: 1,
+          ad: 1,
+          ap: 1,
+          armor: 1,
+        },
+        villain: true,
+        key: "unique-key-1", // Unique identifier
+        level: 15,
+        direction: "west",
+        tileIndex: 40, // Board position
+      }
+    ],
+  }),
+});
+
 // Subscribe to game state changes
 const unsubscribe = globalThis.state.board.subscribe((state) => {
   console.log('Board state changed:', state);
@@ -485,7 +586,7 @@ const unsubscribe = globalThis.state.board.subscribe((state) => {
 unsubscribe();
 ```
 
-For more details on the game state API, see the [Client API Documentation](client_api.md).
+For more details on the game state API, see the [Game State API Documentation](game_state_api.md).
 
 ## Best Practices
 
@@ -513,8 +614,10 @@ For more details on the game state API, see the [Client API Documentation](clien
 ### Compatibility
 
 - Test your mod with different game versions
+- The game uses XState v3, which may have breaking changes compared to previous versions
 - Ensure your mod works well with other mods
 - Use feature detection instead of assuming availability
+- Handle API changes gracefully by checking for the existence of methods before using them
 
 ## Examples
 
@@ -710,5 +813,6 @@ For more examples, check out the existing mods in the `mods` directory.
 ## Further Resources
 
 - [UI Management API](ui_management.md) - Detailed documentation on the UI Management API
-- [Client API Documentation](client_api.md) - Detailed documentation on the Client API
+- [Game State API Documentation](game_state_api.md) - Detailed documentation on the Game State API
+- [Utility Functions Documentation](utility_functions.md) - Documentation for the utility functions API
 - [Bestiary Arena Wiki](https://bestiaryarena.fandom.com/) - Information about the game mechanics 

@@ -1,16 +1,16 @@
 // Content Script Injector for Bestiary Arena Mod Loader
 console.log('Content Script Injector initializing...');
 
-// Guarda a URL base para os mods
+// Store the base URL for mods
 const modsBaseUrl = chrome.runtime.getURL('mods/');
 console.log('Mods base URL:', modsBaseUrl);
 
-// Injeção do script principal na página
+// Script injection function
 function injectScript(filePath) {
   return new Promise((resolve) => {
     const script = document.createElement('script');
     script.src = chrome.runtime.getURL(filePath);
-    script.type = 'text/javascript';
+    script.type = filePath.endsWith('.mjs') ? 'module' : 'text/javascript';
     script.onload = function() {
       console.log(`Script ${filePath} injected and loaded`);
       resolve();
@@ -38,6 +38,11 @@ async function loadScripts() {
     await injectScript('content/local_mods.js');
     console.log('Local mods script loaded');
     
+    // Load utility functions via the sandbox utils
+    // Make sure this is last since it needs the API to be initialized
+    await injectScript('content/ba-sandbox-utils.mjs');
+    console.log('Sandbox utility script loaded');
+    
     // Send mod base URL after scripts are loaded
     window.postMessage({
       from: 'BESTIARY_EXTENSION',
@@ -50,20 +55,20 @@ async function loadScripts() {
   }
 }
 
-// Ponte de comunicação entre a página e a extensão
+// Communication bridge between page and extension
 window.addEventListener('message', function(event) {
   if (event.source !== window) return;
   
-  // Mensagens do script na página para a extensão
+  // Messages from page script to extension
   if (event.data && event.data.from === 'BESTIARY_CLIENT') {
     console.log('Received message from page script:', event.data);
     
     if (event.data.message && event.data.message.action === 'registerLocalMods') {
-      // Encaminha para o background script
+      // Forward to background script
       chrome.runtime.sendMessage(event.data.message, response => {
         console.log('Register mods response:', response);
         
-        // Encaminha a resposta de volta para a página
+        // Forward response back to page
         window.postMessage({
           from: 'BESTIARY_EXTENSION',
           message: {
@@ -75,11 +80,11 @@ window.addEventListener('message', function(event) {
     }
     
     if (event.data.message && event.data.message.action === 'getLocalModConfig') {
-      // Obtém a configuração do mod
+      // Get mod configuration
       chrome.runtime.sendMessage(event.data.message, response => {
         console.log('Get mod config response:', response);
         
-        // Encaminha a configuração para a página
+        // Forward configuration to page
         window.postMessage({
           from: 'BESTIARY_EXTENSION',
           id: event.data.id,
@@ -91,18 +96,29 @@ window.addEventListener('message', function(event) {
       });
     }
   }
+  
+  // Listen for utility functions loaded message
+  if (event.data && event.data.from === 'BA_SANDBOX_UTILS' && event.data.type === 'UTILITY_FUNCTIONS_LOADED') {
+    console.log('Utility functions loaded in the page:', event.data.functions);
+    
+    // Notify other parts of the extension if needed
+    chrome.runtime.sendMessage({
+      action: 'utilityFunctionsLoaded',
+      functions: event.data.functions
+    });
+  }
 });
 
-// Inicialização
+// Initialization
 console.log('Starting script injection sequence...');
 loadScripts();
 
-// Escuta mensagens do background script
+// Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Content script received message:', message);
   
   if (message.action === 'executeLocalMod') {
-    // Encaminha para o script na página
+    // Forward to page script
     window.postMessage({
       from: 'BESTIARY_EXTENSION',
       message: message
@@ -111,7 +127,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({success: true});
   }
   
-  return true; // Indica que podemos responder assincronamente
+  return true; // Indicates we may respond asynchronously
 });
 
 console.log('Content Script Injector setup complete'); 
