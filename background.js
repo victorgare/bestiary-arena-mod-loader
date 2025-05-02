@@ -3,14 +3,20 @@ const scriptCache = {};
 let localMods = [];
 
 function hashToGistUrl(hash) {
-  return `https://gist.githubusercontent.com/raw/${hash}`;
+  return `https://gist.githubusercontent.com/raw/${hash}?cache=${Date.now()}`;
 }
 
 async function fetchScript(hash) {
   try {
     const url = hashToGistUrl(hash);
     
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    });
     
     if (!response.ok) {
       throw new Error(`HTTP error! Status: ${response.status}`);
@@ -31,17 +37,26 @@ async function fetchScript(hash) {
   }
 }
 
-async function getScript(hash) {
+async function getScript(hash, forceRefresh = false) {
+  // If force refresh is true, bypass cache and get from network
+  if (forceRefresh) {
+    console.log(`Force refreshing script: ${hash}`);
+    return await fetchScript(hash);
+  }
+  
+  // Otherwise try memory cache first
   if (scriptCache[hash]) {
     return scriptCache[hash];
   }
   
+  // Then try stored cache
   const storedScripts = await chrome.storage.local.get(`script_${hash}`);
   if (storedScripts[`script_${hash}`]) {
     scriptCache[hash] = storedScripts[`script_${hash}`];
     return scriptCache[hash];
   }
   
+  // Finally fetch from network
   return await fetchScript(hash);
 }
 
@@ -109,7 +124,17 @@ function normalizeUtilityScript(scriptContent) {
 async function fetchUtilityScript() {
   try {
     console.log('Fetching utility script from:', UTILITY_GIST_URL);
-    const response = await fetch(UTILITY_GIST_URL);
+    const cacheParam = `?cache=${Date.now()}`;
+    const url = UTILITY_GIST_URL + cacheParam;
+    
+    const response = await fetch(url, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    });
+    
     if (!response.ok) {
       throw new Error(`Failed to fetch utility gist: ${response.status}`);
     }
@@ -139,8 +164,14 @@ async function fetchUtilityScript() {
 }
 
 // Function to get the utility script (with caching)
-async function getUtilityScript() {
+async function getUtilityScript(forceRefresh = false) {
   try {
+    // Always fetch new if forceRefresh is true
+    if (forceRefresh) {
+      console.log('Force refreshing utility script');
+      return await fetchUtilityScript();
+    }
+    
     // Get cached data from chrome.storage.local instead of localStorage
     const data = await chrome.storage.local.get(['utility_script_cache', 'utility_script_timestamp']);
     const cachedScript = data.utility_script_cache;
@@ -173,6 +204,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   
+  if (message.action === 'refreshScript') {
+    getScript(message.hash, true)
+      .then(scriptContent => {
+        sendResponse({ success: true, scriptContent });
+      })
+      .catch(error => {
+        sendResponse({ success: false, error: error.message });
+      });
+    return true;
+  }
+  
+  if (message.action === 'refreshAllScripts') {
+    refreshAllScripts()
+      .then(enabledScripts => {
+        sendResponse({ success: true, scripts: enabledScripts });
+      })
+      .catch(error => {
+        sendResponse({ success: false, error: error.message });
+      });
+    return true;
+  }
+  
   if (message.action === 'getActiveScripts') {
     getActiveScripts()
       .then(scripts => {
@@ -185,7 +238,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   if (message.action === 'registerScript') {
-    getScript(message.hash)
+    // Always force refresh when registering a script to get latest version
+    getScript(message.hash, true)
       .then(scriptContent => {
         if (!scriptContent) {
           sendResponse({ 
@@ -462,7 +516,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === 'getUtilityScript') {
-    getUtilityScript()
+    getUtilityScript(message.forceRefresh)
       .then(script => sendResponse({ success: true, script }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true; // Indicate async response
@@ -473,21 +527,24 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url && tab.url.match(/bestiaryarena\.com/)) {
     console.log(`Tab ${tabId} updated with URL ${tab.url}`);
     
-    // Delay slightly to ensure the page has fully loaded
-    setTimeout(() => {
-      chrome.tabs.sendMessage(tabId, { action: 'checkAPI' }, response => {
-        if (chrome.runtime.lastError) {
-          console.log('Content script not functioning, injecting manually:', chrome.runtime.lastError);
-          
-          chrome.scripting.executeScript({
-            target: { tabId },
-            files: ['content/injector.js']
-          }).then(() => {
-            console.log('Injector script injected');
+    // First refresh all scripts to get latest versions
+    refreshAllScripts().then(enabledScripts => {
+      console.log(`Refreshed ${enabledScripts.length} active scripts`);
+      
+      // Delay slightly to ensure the page has fully loaded
+      setTimeout(() => {
+        chrome.tabs.sendMessage(tabId, { action: 'checkAPI' }, response => {
+          if (chrome.runtime.lastError) {
+            console.log('Content script not functioning, injecting manually:', chrome.runtime.lastError);
             
-            setTimeout(() => {
-              getActiveScripts().then(scripts => {
-                const enabledScripts = scripts.filter(s => s.enabled);
+            chrome.scripting.executeScript({
+              target: { tabId },
+              files: ['content/injector.js']
+            }).then(() => {
+              console.log('Injector script injected');
+              
+              setTimeout(() => {
+                // Use already refreshed scripts
                 console.log(`Sending ${enabledScripts.length} active scripts to tab ${tabId}`);
                 
                 chrome.tabs.sendMessage(tabId, {
@@ -512,17 +569,14 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                     });
                   });
                 });
-              });
-            }, 1000);
-          }).catch(error => {
-            console.error("Error injecting injector script:", error);
-          });
-        } else {
-          console.log('Content script already functioning, loading scripts');
-          
-          getActiveScripts().then(scripts => {
-            const enabledScripts = scripts.filter(s => s.enabled);
+              }, 1000);
+            }).catch(error => {
+              console.error("Error injecting injector script:", error);
+            });
+          } else {
+            console.log('Content script already functioning, loading scripts');
             
+            // Use already refreshed scripts
             chrome.tabs.sendMessage(tabId, {
               action: 'loadScripts',
               scripts: enabledScripts
@@ -550,10 +604,10 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                 });
               }, 500);
             });
-          });
-        }
-      });
-    }, 500);
+          }
+        });
+      }, 500);
+    });
   }
 });
 
@@ -588,4 +642,17 @@ async function setLocale(locale) {
     console.error('Error setting locale:', error);
     return false;
   }
+}
+
+// Force refresh all active scripts from their source
+async function refreshAllScripts() {
+  console.log('Refreshing all active scripts');
+  const scripts = await getActiveScripts();
+  
+  for (const script of scripts) {
+    console.log(`Refreshing script: ${script.hash}`);
+    await getScript(script.hash, true);
+  }
+  
+  return scripts.filter(s => s.enabled);
 } 
