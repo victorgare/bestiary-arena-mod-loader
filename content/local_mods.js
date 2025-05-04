@@ -65,12 +65,15 @@ async function initLocalMods() {
   }
   
   const availableMods = [
-    { name: "Monster_tier_list.js", key: "Monster Tier List" },
-    { name: "Highscore_Improvements.js", key: "Highscores Improvements" },
-    { name: "Item_tier_list.js", key: "Item Tier List" },
-    { name: "UIComponentsShowcase.js", key: "UI Showcase" },
-    { name: "Toggle_Map_Grid.js", key: "Toggle Map Grid" },
-    { name: "TestMod.js", key: "Test Mod" }
+    { name: "Monster_tier_list.js", key: "Monster Tier List", enabled: true },
+    { name: "Highscore_Improvements.js", key: "Highscores Improvements", enabled: true },
+    { name: "Item_tier_list.js", key: "Item Tier List", enabled: true },
+    { name: "UIComponentsShowcase.js", key: "UI Showcase", enabled: false },
+    { name: "Team_Copier.js", key: "Team Copier", enabled: true },
+    { name: "Hero_Editor.js", key: "Hero Editor", enabled: true },
+    { name: "Setup_Manager.js", key: "Setup Manager", enabled: true },
+    { name: "Custom_Display.js", key: "Custom Display", enabled: true },
+    { name: "TestMod.js", key: "Test Mod", enabled: false }
   ];
   
   let validMods = [];
@@ -95,7 +98,7 @@ async function initLocalMods() {
     name: mod.name,
     displayName: mod.key,
     isLocal: true,
-    enabled: false // Default to disabled and let the extension set the real state
+    enabled: mod.enabled // Use the default value from availableMods
   }));
   
   console.log('Local mods initialized:', localMods);

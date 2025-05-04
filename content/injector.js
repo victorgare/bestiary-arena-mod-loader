@@ -166,6 +166,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   
+  if (message.action === 'executeScript') {
+    console.log(`Executing script: ${message.hash}`);
+    window.postMessage({
+      from: 'BESTIARY_EXTENSION',
+      message: {
+        action: 'executeScript',
+        hash: message.hash,
+        scriptContent: message.scriptContent,
+        config: message.config || {}
+      }
+    }, '*');
+    
+    sendResponse({ success: true });
+    return true;
+  }
+  
   if (message.action === 'reloadLocalMods') {
     console.log('Reloading local mods');
     
@@ -228,4 +244,207 @@ window.addEventListener('message', function(event) {
   if (message && message.action === 'registerLocalMods') {
     console.log('Received registerLocalMods in injector');
   }
-}); 
+});
+
+// Check for replay data immediately
+checkForReplayData();
+
+// Also listen for page changes to handle SPA navigation
+window.addEventListener('hashchange', checkForReplayData);
+
+// Listen for executeFunction messages from our own script
+window.addEventListener('message', function(event) {
+  if (event.source !== window) return;
+  if (!event.data || event.data.from !== 'BESTIARY_INJECTOR') return;
+  
+  if (event.data.action === 'executeFunction') {
+    try {
+      const fnName = event.data.function;
+      const args = event.data.args || [];
+      
+      console.log(`Executing function: ${fnName} with args:`, args);
+      
+      if (typeof window[fnName] === 'function') {
+        window[fnName].apply(window, args);
+      } else {
+        console.error(`Function ${fnName} not found in window scope`);
+      }
+    } catch (error) {
+      console.error('Error executing function:', error);
+    }
+  }
+});
+
+// INJECTOR SCRIPT
+// This script is responsible for handling URL shared team parameters and storing them in localStorage
+// The actual application of the team configuration is done by the TeamCopier mod
+
+// Decompress compact format (V2)
+function decompressCompactFormat(compressedData) {
+  try {
+    // Restore base64 padding if needed
+    let base64 = compressedData;
+    // Add padding if necessary
+    base64 = base64.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+    
+    // Decode base64
+    const jsonStr = atob(base64);
+    
+    // Parse JSON
+    const compactData = JSON.parse(jsonStr);
+    
+    // Extract data from compact format
+    const [region, map, seed, compactBoard] = compactData;
+    
+    // Rebuild the board data
+    const board = compactBoard.map(piece => {
+      const [
+        tile,
+        monsterName,
+        hp,
+        ad,
+        ap,
+        armor,
+        magicResist,
+        equipName,
+        equipStat,
+        equipTier
+      ] = piece;
+      
+      return {
+        tile,
+        monster: {
+          name: monsterName,
+          hp,
+          ad,
+          ap,
+          armor,
+          magicResist
+        },
+        equipment: {
+          name: equipName,
+          stat: equipStat,
+          tier: equipTier
+        }
+      };
+    });
+    
+    // Construct full board data
+    const boardData = {
+      region,
+      map,
+      board
+    };
+    
+    // Only include seed if it's not 0
+    if (seed !== 0) {
+      boardData.seed = seed;
+    }
+    
+    return boardData;
+  } catch (error) {
+    console.error('Error decompressing compact format data:', error);
+    throw new Error('Unable to decompress compact format data');
+  }
+}
+
+// Helper function to decompress data from URL
+function decompressData(compressedData) {
+  try {
+    // Check for compact format first (v2 format)
+    if (compressedData.startsWith('v2-')) {
+      return decompressCompactFormat(compressedData.substring(3));
+    }
+    
+    // Then try decompressing as base64
+    return JSON.parse(decodeURIComponent(atob(compressedData)));
+  } catch (error) {
+    console.log('Failed to decompress using base64, trying direct JSON parse:', error);
+    
+    // Fallback to directly decoding JSON (for older URLs)
+    try {
+      return JSON.parse(decodeURIComponent(compressedData));
+    } catch (fallbackError) {
+      console.error('Failed to decompress data using fallback method:', fallbackError);
+      throw new Error('Unable to decompress replay data');
+    }
+  }
+}
+
+// Show error notification
+function showErrorNotification(message) {
+  try {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(200, 0, 0, 0.8);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 4px;
+      z-index: 10000;
+      font-family: sans-serif;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      max-width: 80%;
+      text-align: center;
+    `;
+    
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    // Remove after 5 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        document.body.removeChild(notification);
+      }
+    }, 5000);
+  } catch (error) {
+    console.error('Error showing error notification:', error);
+  }
+}
+
+// Check for replay data in URL
+function checkForReplayData() {
+  const hash = window.location.hash;
+  if (hash && hash.startsWith('#replay=')) {
+    console.log('Found replay parameter in URL');
+    try {
+      // Extract the data
+      const encodedData = hash.substring('#replay='.length);
+      // Try to decompress the data
+      const boardData = decompressData(encodedData);
+      
+      console.log('Successfully decompressed replay data from URL');
+      
+      // Store the data in localStorage for the mod to use
+      localStorage.setItem('BESTIARY_REPLAY_DATA', JSON.stringify(boardData));
+      
+      // Set flag indicating this page was loaded with a share code
+      localStorage.setItem('BESTIARY_LOADED_WITH_SHARE', 'true');
+      
+      // Navigate to clean URL to prevent replay data persisting in browser history
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, null, window.location.pathname);
+      }
+    } catch (error) {
+      console.error('Error processing replay data from URL:', error);
+      // Show error notification once DOM is available
+      setTimeout(() => {
+        showErrorNotification('Error loading shared configuration. Invalid or corrupted data.');
+      }, 1000);
+      localStorage.removeItem('BESTIARY_LOADED_WITH_SHARE');
+    }
+  }
+}
+
+// Check for replay data immediately
+checkForReplayData();
+
+// Also listen for page changes to handle SPA navigation
+window.addEventListener('hashchange', checkForReplayData); 

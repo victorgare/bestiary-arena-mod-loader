@@ -387,6 +387,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === 'executeScript') {
+    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+      if (tabs[0]) {
+        try {
+          // Obter o conteúdo do script
+          const scriptContent = await getScript(message.hash);
+          if (!scriptContent) {
+            sendResponse({ success: false, error: 'Script content not found' });
+            return;
+          }
+          
+          // Obter a configuração do script
+          const scripts = await getActiveScripts();
+          const script = scripts.find(s => s.hash === message.hash);
+          
+          if (!script) {
+            sendResponse({ success: false, error: 'Script not found in active scripts' });
+            return;
+          }
+          
+          // Enviar mensagem para o content script executar o script
+          chrome.tabs.sendMessage(tabs[0].id, {
+            action: 'executeScript',
+            hash: message.hash,
+            scriptContent: scriptContent,
+            config: script.config || {}
+          });
+          
+          sendResponse({ success: true });
+        } catch (error) {
+          console.error('Error executing script:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+      } else {
+        sendResponse({ success: false, error: 'No active tab found' });
+      }
+    });
+    return true;
+  }
+
   if (message.action === 'getLocale') {
     getTranslations()
       .then(({ currentLocale, translations }) => {

@@ -26,23 +26,48 @@ function showItemTierListModal() {
   try {
     const { equips, boardConfigs } = globalThis.state.player.getSnapshot().context;
     const equipLookup = new Map(equips.map(m => [m.id, m.gameId]));
+    
+    // Track both total usage count and stat-specific usage count
     const countMap = new Map();
-
-    Object.values(boardConfigs).forEach(cfgs =>
+    const statUsageMap = new Map();
+    
+    // Initialize stat usage tracking for each item
+    equips.forEach(equip => {
+      if (!statUsageMap.has(equip.gameId)) {
+        statUsageMap.set(equip.gameId, { ad: 0, ap: 0, hp: 0 });
+      }
+    });
+    
+    // Count item usage in board configurations and track stat usage
+    Object.values(boardConfigs).forEach(cfgs => {
       cfgs.forEach(({ equipId }) => {
         if (equipId != null) {
-          const gid = equipLookup.get(equipId);
-          if (gid != null) countMap.set(gid, (countMap.get(gid) || 0) + 1);
+          // Get the game ID for this equipment
+          const gameId = equipLookup.get(equipId);
+          
+          if (gameId != null) {
+            // Increment total usage count
+            countMap.set(gameId, (countMap.get(gameId) || 0) + 1);
+            
+            // Track stat usage - find the equip in the player's inventory to get its stat
+            const equip = equips.find(e => e.id === equipId);
+            if (equip && equip.stat) {
+              const statCounts = statUsageMap.get(gameId) || { ad: 0, ap: 0, hp: 0 };
+              statCounts[equip.stat]++;
+              statUsageMap.set(gameId, statCounts);
+            }
+          }
         }
-      })
-    );
+      });
+    });
 
     const total = Array.from(countMap.values()).reduce((a, b) => a + b, 0);
     const list = Array.from(countMap.entries())
       .map(([gameId, cnt]) => ({
         gameId,
         count: cnt,
-        pct: Math.floor((cnt / total) * 100)
+        pct: Math.floor((cnt / total) * 100),
+        statUsage: statUsageMap.get(gameId) || { ad: 0, ap: 0, hp: 0 }
       }))
       .sort((a, b) => b.count - a.count);
 
@@ -79,12 +104,12 @@ function showItemTierListModal() {
       itemContainer.style.cssText = 'display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;';
       
       // Add item portraits for this tier
-      chunk.forEach(({ gameId, count }) => {
+      chunk.forEach((item) => {
         // Get sprite ID from equipment metadata
         let spriteId;
         let equipName = 'Unknown Item';
         try {
-          const equipData = globalThis.state.utils.getEquipment(gameId);
+          const equipData = globalThis.state.utils.getEquipment(item.gameId);
           spriteId = equipData.metadata.spriteId;
           equipName = equipData.metadata.name;
         } catch (e) {
@@ -94,24 +119,19 @@ function showItemTierListModal() {
         const itemWrapper = document.createElement('div');
         itemWrapper.style.cssText = 'position: relative; width: 32px; height: 32px;';
         
-        // Get stat information from equips
-        const statCounts = { ad: 0, ap: 0, hp: 0 };
-        equips.forEach(equip => {
-          if (equip.gameId === gameId) {
-            statCounts[equip.stat] = (statCounts[equip.stat] || 0) + 1;
-          }
-        });
+        // Find most common stat used for this item in board configurations
+        const { ad, ap, hp } = item.statUsage;
+        const mostUsedStat = [
+          { stat: 'ad', count: ad },
+          { stat: 'ap', count: ap },
+          { stat: 'hp', count: hp }
+        ].sort((a, b) => b.count - a.count)[0].stat;
         
-        // Find most common stat for this item
-        const mostUsedStat = Object.entries(statCounts)
-          .sort((a, b) => b[1] - a[1])
-          .filter(([_, count]) => count > 0)[0]?.[0] || 'ad';
-        
-        // Use the item portrait component
+        // Use the item portrait component with the most used stat
         const itemPortrait = api.ui.components.createItemPortrait({
           itemId: spriteId,
           stat: mostUsedStat,
-          tier: Math.min(5, Math.max(1, Math.ceil(count / 3))), // Scale tier from 1-5 based on count
+          tier: Math.min(5, Math.max(1, Math.ceil(item.count / 3))), // Scale tier from 1-5 based on count
           onClick: () => {
             // Show item details when clicked
             const contentContainer = document.createElement('div');
@@ -124,7 +144,7 @@ function showItemTierListModal() {
             const fullItem = api.ui.components.createFullItem({
               itemId: spriteId,
               stat: mostUsedStat,
-              tier: Math.min(5, Math.max(1, Math.ceil(count / 3))),
+              tier: Math.min(5, Math.max(1, Math.ceil(item.count / 3))),
               animated: false, // Set to true for animated items
               size: 'small' // Use small size for the modal
             });
@@ -135,19 +155,19 @@ function showItemTierListModal() {
             // Add usage stats
             const statsContainer = document.createElement('div');
             statsContainer.innerHTML = `
-              <p>Used ${count} times in your saved configurations.</p>
-              <p>Usage percentage: ${Math.floor((count / total) * 100)}%</p>
+              <p>Used ${item.count} times in your saved configurations.</p>
+              <p>Usage percentage: ${Math.floor((item.count / total) * 100)}%</p>
               <p>Stats distribution:</p>
               <ul>
-                <li>Attack Damage (AD): ${statCounts.ad || 0} times</li>
-                <li>Ability Power (AP): ${statCounts.ap || 0} times</li>
-                <li>Health Points (HP): ${statCounts.hp || 0} times</li>
+                <li>Attack Damage (AD): ${item.statUsage.ad} times</li>
+                <li>Ability Power (AP): ${item.statUsage.ap} times</li>
+                <li>Health Points (HP): ${item.statUsage.hp} times</li>
               </ul>
             `;
             contentContainer.appendChild(statsContainer);
             
             api.ui.components.createModal({
-              title: equipName || `Item #${gameId}`,
+              title: equipName || `Item #${item.gameId}`,
               width: 300,
               content: contentContainer,
               buttons: [
@@ -162,7 +182,7 @@ function showItemTierListModal() {
         
         // Add count badge
         const countBadge = document.createElement('div');
-        countBadge.textContent = count;
+        countBadge.textContent = item.count;
         countBadge.style.cssText = 'position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.7); color: white; font-size: 10px; padding: 1px 2px; z-index: 3; border-radius: 2px; line-height: 1;';
         
         itemWrapper.appendChild(itemPortrait);

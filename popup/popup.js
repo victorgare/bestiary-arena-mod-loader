@@ -193,6 +193,13 @@ function renderScripts(scripts) {
     const scriptActions = document.createElement('div');
     scriptActions.className = 'script-actions';
     
+    const executeButton = document.createElement('button');
+    executeButton.className = 'primary-button button-small';
+    executeButton.textContent = i18n.t('controls.execute');
+    executeButton.addEventListener('click', () => {
+      executeScript(script.hash);
+    });
+    
     const editButton = document.createElement('button');
     editButton.className = 'secondary-button button-small';
     editButton.textContent = i18n.t('controls.edit');
@@ -207,6 +214,7 @@ function renderScripts(scripts) {
       removeScript(script.hash);
     });
     
+    scriptActions.appendChild(executeButton);
     scriptActions.appendChild(editButton);
     scriptActions.appendChild(deleteButton);
     
@@ -339,6 +347,21 @@ async function executeLocalMod(name) {
     const response = await chrome.runtime.sendMessage({
       action: 'executeLocalMod',
       name
+    });
+    
+    if (!response.success) {
+      showError(response.error || i18n.t('messages.unknownError'));
+    }
+  } catch (error) {
+    showError(`${i18n.t('messages.errorCommunication')}: ${error.message}`);
+  }
+}
+
+async function executeScript(hash) {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'executeScript',
+      hash
     });
     
     if (!response.success) {
