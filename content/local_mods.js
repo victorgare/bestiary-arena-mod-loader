@@ -113,10 +113,22 @@ async function initLocalMods() {
   }, '*');
 }
 
-async function executeLocalMod(modName) {
+async function executeLocalMod(modName, forceExecution = false) {
   // If already executed, log and exit (but allow a forced re-execution if needed)
-  if (executedMods[modName]) {
+  if (executedMods[modName] && !forceExecution) {
     console.log(`Local mod ${modName} was already executed, skipping`);
+    return;
+  }
+
+  // Check if the mod is enabled before execution
+  const mod = localMods.find(m => m.name === modName);
+  if (!mod) {
+    console.error(`Cannot execute mod ${modName}: mod not found in local mods list`);
+    return;
+  }
+  
+  if (!mod.enabled && !forceExecution) {
+    console.log(`Skipping disabled mod: ${modName}`);
     return;
   }
 
@@ -316,8 +328,9 @@ window.addEventListener('message', function(event) {
     
     if (event.data.message && event.data.message.action === 'executeLocalMod') {
       const modName = event.data.message.name;
-      console.log(`Received request to execute local mod: ${modName}`);
-      executeLocalMod(modName).catch(err => {
+      const force = !!event.data.message.force;
+      console.log(`Received request to execute local mod: ${modName} (force: ${force})`);
+      executeLocalMod(modName, force).catch(err => {
         console.error(`Error executing local mod ${modName} on request:`, err);
       });
     }
