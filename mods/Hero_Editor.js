@@ -293,7 +293,56 @@ function showHeroEditorModal() {
     // Get serialized board data
     const originalBoardData = getSerializedBoard();
     
-    if (!originalBoardData || !originalBoardData.board || originalBoardData.board.length === 0) {
+    if (!originalBoardData) {
+      throw new Error('Could not retrieve board data. Make sure you are in a game.');
+    }
+    
+    // Check if we have any board data - even if it's just monsters without equipment
+    if (!originalBoardData.board) {
+      originalBoardData.board = [];
+    }
+    
+    // If the board is empty, we need to try to create board entries based on boardConfig
+    if (originalBoardData.board.length === 0 && boardContext.boardConfig) {
+      console.log('No hero data found in serializeBoard output, attempting to create from board config');
+      
+      // Look for player pieces in the board configuration
+      boardContext.boardConfig.forEach(piece => {
+        if (piece.type === 'player' && piece.databaseId) {
+          const monster = playerContext.monsters.find(m => m.id === piece.databaseId);
+          if (monster) {
+            // Find monster name
+            let monsterName = null;
+            try {
+              const monsterData = globalThis.state.utils.getMonster(monster.gameId);
+              monsterName = monsterData.metadata.name.toLowerCase();
+            } catch (e) {
+              console.warn('Could not get monster name, using default', e);
+              monsterName = 'unknown monster';
+            }
+            
+            // Create a basic board entry
+            const boardEntry = {
+              tile: piece.tileIndex,
+              monster: {
+                name: monsterName,
+                hp: monster.hp,
+                ad: monster.ad,
+                ap: monster.ap,
+                armor: monster.armor,
+                magicResist: monster.magicResist
+              }
+              // Note: No equipment initially
+            };
+            
+            originalBoardData.board.push(boardEntry);
+          }
+        }
+      });
+    }
+    
+    // Still no board data
+    if (originalBoardData.board.length === 0) {
       throw new Error('No hero data found. Make sure you have heroes on the board.');
     }
     
@@ -323,8 +372,8 @@ function showHeroEditorModal() {
     
     // Create cards for each hero
     editableBoardData.board.forEach((hero, index) => {
-      // Only process player pieces (monsters with items)
-      if (!hero.monster || !hero.equipment) return;
+      // Only process pieces with monsters
+      if (!hero.monster) return;
       
       // Get the properly cased monster name
       let monsterName = hero.monster.name || 'Unknown Monster';
@@ -464,24 +513,48 @@ function showHeroEditorModal() {
       const equipContainer = document.createElement('div');
       equipContainer.className = 'frame-pressed-1 surface-darker p-2';
       
-      // Get equipment data
-      let equipName = hero.equipment.name || 'Unknown Item';
+      // Default equipment values for new equipment
+      let equipName = '';
+      let equipStat = 'ad';
+      let equipTier = 1;
       let equipGameId = null;
       
-      // Try to get game ID from window.equipmentNamesToGameIds first
-      if (window.equipmentNamesToGameIds) {
-        equipGameId = window.equipmentNamesToGameIds.get(equipName.toLowerCase());
-      }
+      // Check if the hero has equipment
+      const hasEquipment = hero.equipment && hero.equipment.name;
       
-      // If not found, try with our equipMap
-      if (!equipGameId && equipMap) {
-        equipGameId = equipMap.get(equipName.toLowerCase());
-      }
-      
-      // Get the original cased name if possible
-      if (equipGameId) {
-        const originalName = getEquipmentNameFromId(equipGameId);
-        if (originalName) equipName = originalName;
+      // If hero has equipment, use those values
+      if (hasEquipment) {
+        equipName = hero.equipment.name || 'Unknown Item';
+        equipStat = hero.equipment.stat || 'ad';
+        equipTier = hero.equipment.tier || 1;
+        
+        // Try to get game ID from window.equipmentNamesToGameIds first
+        if (window.equipmentNamesToGameIds) {
+          equipGameId = window.equipmentNamesToGameIds.get(equipName.toLowerCase());
+        }
+        
+        // If not found, try with our equipMap
+        if (!equipGameId && equipMap) {
+          equipGameId = equipMap.get(equipName.toLowerCase());
+        }
+        
+        // Get the original cased name if possible
+        if (equipGameId) {
+          const originalName = getEquipmentNameFromId(equipGameId);
+          if (originalName) equipName = originalName;
+        }
+      } else {
+        // If no equipment, add a message at the top
+        const noEquipMsg = document.createElement('div');
+        noEquipMsg.textContent = 'No equipment - select one below:';
+        noEquipMsg.className = 'pixel-font-12 text-whiteRegular';
+        noEquipMsg.style.marginBottom = '8px';
+        equipContainer.appendChild(noEquipMsg);
+        
+        // Initialize hero.equipment object if it doesn't exist
+        if (!hero.equipment) {
+          hero.equipment = { name: '', stat: 'ad', tier: 1 };
+        }
       }
       
       // Compact equipment layout with row flex
@@ -509,8 +582,8 @@ function showHeroEditorModal() {
           if (equipData && equipData.metadata) {
             itemPortrait = api.ui.components.createItemPortrait({
               itemId: equipData.metadata.spriteId,
-              stat: hero.equipment.stat,
-              tier: hero.equipment.tier
+              stat: equipStat,
+              tier: equipTier
             });
             
             portraitContainer.appendChild(itemPortrait);
@@ -545,7 +618,7 @@ function showHeroEditorModal() {
         const selectOption = document.createElement('option');
         selectOption.value = option.name;
         selectOption.textContent = option.displayName;
-        if (option.name.toLowerCase() === equipName.toLowerCase()) {
+        if (hasEquipment && option.name.toLowerCase() === equipName.toLowerCase()) {
           selectOption.selected = true;
         }
         nameSelect.appendChild(selectOption);
@@ -578,7 +651,7 @@ function showHeroEditorModal() {
         const option = document.createElement('option');
         option.value = stat;
         option.textContent = stat.toUpperCase();
-        if (hero.equipment.stat === stat) option.selected = true;
+        if (equipStat === stat) option.selected = true;
         statSelect.appendChild(option);
       });
       
@@ -597,7 +670,7 @@ function showHeroEditorModal() {
       tierInput.type = 'number';
       tierInput.min = 1;
       tierInput.max = 5;
-      tierInput.value = hero.equipment.tier;
+      tierInput.value = equipTier;
       tierInput.className = 'frame-pressed-1 surface-dark pixel-font-14 text-whiteRegular px-2 py-1';
       tierInput.style.width = '40px';
       tierInput.style.textAlign = 'center';
@@ -627,7 +700,7 @@ function showHeroEditorModal() {
         portraitContainer: portraitContainer
       });
       
-      // Add event listeners to update item portrait when equipment changes
+      // Add event handlers for equipment change
       nameSelect.addEventListener('change', () => {
         // Find the related controls
         const nameControl = controls.find(c => c.hero === hero && c.type === 'equipName');
@@ -658,6 +731,11 @@ function showHeroEditorModal() {
               
               // Update portrait reference for all related controls
               nameControl.portrait = statControl.portrait = tierControl.portrait = newPortrait;
+              
+              // Make sure portrait container is added to equipContent if it wasn't already
+              if (!nameControl.portraitContainer.parentElement) {
+                equipContent.insertBefore(nameControl.portraitContainer, equipContent.firstChild);
+              }
             }
           }
         }
@@ -693,6 +771,11 @@ function showHeroEditorModal() {
               
               // Update portrait reference for all related controls
               nameControl.portrait = statControl.portrait = tierControl.portrait = newPortrait;
+              
+              // Make sure portrait container is added to equipContent if it wasn't already
+              if (!nameControl.portraitContainer.parentElement) {
+                equipContent.insertBefore(nameControl.portraitContainer, equipContent.firstChild);
+              }
             }
           }
         }
@@ -728,10 +811,21 @@ function showHeroEditorModal() {
               
               // Update portrait reference for all related controls
               nameControl.portrait = statControl.portrait = tierControl.portrait = newPortrait;
+              
+              // Make sure portrait container is added to equipContent if it wasn't already
+              if (!nameControl.portraitContainer.parentElement) {
+                equipContent.insertBefore(nameControl.portraitContainer, equipContent.firstChild);
+              }
             }
           }
         }
       });
+      
+      // Trigger a change event if there is a selected equipment to initialize the portrait
+      if (!hasEquipment && nameSelect.value) {
+        const event = new Event('change');
+        nameSelect.dispatchEvent(event);
+      }
       
       statTierContainer.appendChild(statSelect);
       statTierContainer.appendChild(tierWrapper);
@@ -825,20 +919,24 @@ function showHeroEditorModal() {
                   const tierControl = controls.find(c => c.hero === hero && c.type === 'equipTier');
                   
                   if (statControl && tierControl && updatedBoardData.board[boardIndex]) {
-                    // Get the proper equipment name and data
+                    // Get the equipment name and data
                     const equipName = control.select.value;
-                    const equipId = equipMap.get(equipName.toLowerCase());
                     
-                    if (equipId) {
-                      const equipData = globalThis.state.utils.getEquipment(equipId);
-                      if (equipData && equipData.metadata) {
-                        // Update equipment in the board data format expected by configureBoard
-                        // Make sure to use lowercase for equipment name to avoid errors
-                        updatedBoardData.board[boardIndex].equipment = {
-                          name: equipData.metadata.name.toLowerCase(),
-                          stat: statControl.select.value,
-                          tier: parseInt(tierControl.input.value)
-                        };
+                    // Only proceed if an equipment is selected
+                    if (equipName) {
+                      const equipId = equipMap.get(equipName.toLowerCase());
+                      
+                      if (equipId) {
+                        const equipData = globalThis.state.utils.getEquipment(equipId);
+                        if (equipData && equipData.metadata) {
+                          // Create or update equipment in the board data
+                          // Make sure to use lowercase for equipment name to avoid errors
+                          updatedBoardData.board[boardIndex].equipment = {
+                            name: equipData.metadata.name.toLowerCase(),
+                            stat: statControl.select.value,
+                            tier: parseInt(tierControl.input.value)
+                          };
+                        }
                       }
                     }
                   }
@@ -851,6 +949,8 @@ function showHeroEditorModal() {
                   piece.monster.name = piece.monster.name.toLowerCase();
                 }
               });
+              
+              console.log('Updated board data:', updatedBoardData);
               
               // Apply the updated board data
               const success = configureBoard(updatedBoardData);
@@ -892,7 +992,7 @@ function showHeroEditorModal() {
     // Show error message
     api.ui.components.createModal({
       title: 'Error',
-      content: 'Failed to open hero editor. Make sure you are in a game with heroes on the board.',
+      content: `Failed to open hero editor: ${error.message}`,
       buttons: [{ text: 'OK', primary: true }]
     });
   }

@@ -334,8 +334,8 @@
 				
 				const monsters = playerSnapshot.context.monsters;
 				const equips = playerSnapshot.context.equips;
-				if (!monsters || !equips) {
-					console.warn('Player monsters or equips not available');
+				if (!monsters) {
+					console.warn('Player monsters not available');
 					return null;
 				}
 				
@@ -361,26 +361,8 @@
 				const monsterName = monsterGameIdsToNames.get(monster.gameId);
 				
 				const equipId = piece.equipId ?? monster.equipId;
-				const equip = equips.find((equip) => equip.id === equipId);
-				if (!equip) {
-					console.warn(`Equipment with ID ${equipId} not found`);
-					return null;
-				}
 				
-				// Check if we need to initialize equipment maps
-				if (!equipmentGameIdsToNames.has(equip.gameId)) {
-					console.warn(`Equipment name for game ID ${equip.gameId} not found, attempting to reinitialize maps`);
-					initializeMaps();
-					
-					// Check again after initialization
-					if (!equipmentGameIdsToNames.has(equip.gameId)) {
-						console.warn(`Equipment name for game ID ${equip.gameId} still not found after reinitialization`);
-						return null;
-					}
-				}
-				
-				const equipName = equipmentGameIdsToNames.get(equip.gameId);
-				
+				// Create the base serialized object without equipment first
 				const serialized = {
 					tile: tile,
 					monster: {
@@ -391,13 +373,45 @@
 						ap: monster.ap,
 						armor: monster.armor,
 						magicResist: monster.magicResist,
-					},
-					equipment: {
-						name: equipName,
-						stat: equip.stat,
-						tier: equip.tier,
-					},
+					}
 				};
+				
+				// Only try to add equipment if it exists
+				if (equipId && equips && equips.length > 0) {
+					const equip = equips.find((equip) => equip.id === equipId);
+					if (equip) {
+						// Check if we need to initialize equipment maps
+						if (!equipmentGameIdsToNames.has(equip.gameId)) {
+							console.warn(`Equipment name for game ID ${equip.gameId} not found, attempting to reinitialize maps`);
+							initializeMaps();
+							
+							// Check again after initialization
+							if (!equipmentGameIdsToNames.has(equip.gameId)) {
+								console.warn(`Equipment name for game ID ${equip.gameId} still not found after reinitialization`);
+								// Continue without equipment
+							} else {
+								const equipName = equipmentGameIdsToNames.get(equip.gameId);
+								serialized.equipment = {
+									name: equipName,
+									stat: equip.stat,
+									tier: equip.tier,
+								};
+							}
+						} else {
+							const equipName = equipmentGameIdsToNames.get(equip.gameId);
+							serialized.equipment = {
+								name: equipName,
+								stat: equip.stat,
+								tier: equip.tier,
+							};
+						}
+					} else {
+						console.log(`Equipment with ID ${equipId} not found, continuing without equipment`);
+					}
+				} else {
+					console.log('No equipment ID available for monster, continuing without equipment');
+				}
+				
 				return serialized;
 			} catch (error) {
 				console.error('Error in serializePlayerPiece:', error);
