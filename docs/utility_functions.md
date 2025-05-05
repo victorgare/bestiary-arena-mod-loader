@@ -72,7 +72,8 @@ window.BestiaryModAPI.utility.replay({
         ad: 5,
         ap: 0,
         armor: 2,
-        magicResist: 0
+        magicResist: 0,
+        level: 5  // Monster level (will be converted to experience)
       },
       equipment: {
         name: 'axe',
@@ -102,6 +103,22 @@ Forces the game to use a specific seed for random number generation.
 ### `removeSeed()`
 
 Removes a previously forced seed, allowing the game to use random seeds again.
+
+### Level and Experience Functions
+
+These utility functions are available through the game state utility:
+
+```javascript
+// Calculate experience points needed for a specific level
+const expForLevel5 = globalThis.state.utils.expAtLevel(5);
+console.log(expForLevel5); // 11250
+
+// Calculate level based on experience points
+const levelForExp = globalThis.state.utils.expToCurrentLevel(440425);
+console.log(levelForExp); // 25
+```
+
+**Note:** When serializing or configuring the board, monster levels are automatically converted to the appropriate experience points.
 
 ## Available Maps
 

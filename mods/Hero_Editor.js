@@ -38,48 +38,6 @@ api.ui.addButton({
 const getPlayerSnapshot = () => globalThis.state.player.getSnapshot().context;
 const getBoardSnapshot = () => globalThis.state.board.getSnapshot().context;
 
-// Level calculation constants
-const ENEMY_XP_DROP_PER_LVL = 56.25; // arbitrary
-const XP_RATE = 10; // higher = faster xp rate
-const ROOM_XP_DROP_PER_LEVEL = ENEMY_XP_DROP_PER_LVL * XP_RATE;
-
-// Experience and level calculation utilities
-const getLevelSteepness = (level) => 0.00970941 * Math.pow(1.14111, level) + 1;
-
-const expAtLevel = (level) => {
-  const steepness = level * getLevelSteepness(level);
-  const xpRequired = (level - 1) * ROOM_XP_DROP_PER_LEVEL;
-  const result = Math.round(steepness * xpRequired);
-  return result - (result % 250);
-};
-
-// Calculate level from experience points using binary search
-const levelFromExp = (exp) => {
-  if (exp <= 0) return 1;
-  
-  // Binary search to find the level
-  let minLevel = 1;
-  let maxLevel = 100; // Reasonable upper bound
-  
-  while (minLevel <= maxLevel) {
-    const midLevel = Math.floor((minLevel + maxLevel) / 2);
-    const expForMidLevel = expAtLevel(midLevel);
-    const expForNextLevel = expAtLevel(midLevel + 1);
-    
-    if (exp >= expForMidLevel && exp < expForNextLevel) {
-      return midLevel;
-    }
-    
-    if (exp < expForMidLevel) {
-      maxLevel = midLevel - 1;
-    } else {
-      minLevel = midLevel + 1;
-    }
-  }
-  
-  return minLevel;
-};
-
 // Properly capitalize names (title case with connecting words lowercase)
 function toTitleCase(str) {
   if (!str) return '';
@@ -181,7 +139,8 @@ const iconMap = {
   hp: "/assets/icons/heal.png",
   magicResist: "/assets/icons/magicresist.png",
   armor: "/assets/icons/armor.png",
-  speed: "/assets/icons/speed.png"
+  speed: "/assets/icons/speed.png",
+  level: "/assets/icons/achievement.png"
 };
 
 // Update equipment stats
@@ -286,8 +245,22 @@ function configureBoard(boardData) {
 // Main function to show the hero editor modal
 function showHeroEditorModal() {
   try {
-    // Get player data for equipment information
+    // Check if sandbox mode is enabled
     const playerContext = getPlayerSnapshot();
+    const playerFlags = playerContext.flags;
+    
+    // Create Flags object to check sandbox mode
+    const flags = new globalThis.state.utils.Flags(playerFlags);
+    if (!flags.isSet("sandbox")) {
+      api.ui.components.createModal({
+        title: 'Sandbox Mode Required',
+        content: 'Hero Editor requires Sandbox Mode to be enabled.',
+        buttons: [{ text: 'OK', primary: true }]
+      });
+      return;
+    }
+    
+    // Get player data for equipment information
     const boardContext = getBoardSnapshot();
     
     // Get serialized board data
@@ -330,7 +303,8 @@ function showHeroEditorModal() {
                 ad: monster.ad,
                 ap: monster.ap,
                 armor: monster.armor,
-                magicResist: monster.magicResist
+                magicResist: monster.magicResist,
+                level: monster.exp ? globalThis.state.utils.expToCurrentLevel(monster.exp) : 1
               }
               // Note: No equipment initially
             };
@@ -405,8 +379,8 @@ function showHeroEditorModal() {
         if (originalName) monsterName = originalName;
       }
       
-      // Calculate monster level (if we have exp data, currently placeholder)
-      const monsterLevel = 1;
+      // Calculate monster level from exp if available or use the provided level
+      const monsterLevel = hero.monster.level || 1;
       
       // Create hero card container
       const heroCard = document.createElement('div');
@@ -453,7 +427,8 @@ function showHeroEditorModal() {
         { key: 'ad', label: 'AD' },
         { key: 'ap', label: 'AP' },
         { key: 'armor', label: 'ARM' },
-        { key: 'magicResist', label: 'MR' }
+        { key: 'magicResist', label: 'MR' },
+        { key: 'level', label: 'LVL' }  // Added level stat
       ];
       
       // Create stat inputs
@@ -469,17 +444,20 @@ function showHeroEditorModal() {
         labelContainer.style.alignItems = 'center';
         labelContainer.style.gap = '4px';
         
-        const iconElement = document.createElement('img');
-        iconElement.src = iconMap[stat.key];
-        iconElement.alt = stat.label;
-        iconElement.width = iconElement.height = 16;
-        iconElement.className = 'pixelated';
+        // Only add icon for stats that have one
+        if (iconMap[stat.key]) {
+          const iconElement = document.createElement('img');
+          iconElement.src = iconMap[stat.key];
+          iconElement.alt = stat.label;
+          iconElement.width = iconElement.height = 16;
+          iconElement.className = 'pixelated';
+          labelContainer.appendChild(iconElement);
+        }
         
         const labelElement = document.createElement('span');
         labelElement.textContent = stat.label;
         labelElement.className = 'pixel-font-12 text-whiteRegular';
         
-        labelContainer.appendChild(iconElement);
         labelContainer.appendChild(labelElement);
         statContainer.appendChild(labelContainer);
         
@@ -487,8 +465,16 @@ function showHeroEditorModal() {
         const inputElement = document.createElement('input');
         inputElement.type = 'number';
         inputElement.min = 1;
-        inputElement.max = 20;
-        inputElement.value = hero.monster[stat.key] || 1;
+        
+        // Set max values based on stat type
+        if (stat.key === 'level') {
+          inputElement.max = 100;  // Max level
+          inputElement.value = monsterLevel;
+        } else {
+          inputElement.max = 20;  // Max for other stats
+          inputElement.value = hero.monster[stat.key] || 1;
+        }
+        
         inputElement.className = 'frame-pressed-1 surface-darker pixel-font-14 text-whiteRegular px-2 py-1';
         inputElement.style.width = '100%';
         
@@ -613,6 +599,16 @@ function showHeroEditorModal() {
       // Sort options alphabetically
       equipmentOptions.sort((a, b) => a.displayName.localeCompare(b.displayName));
       
+      // Add "No Equipment" option at the top
+      const noEquipOption = document.createElement('option');
+      noEquipOption.value = '';
+      noEquipOption.textContent = '-- No Equipment --';
+      // If hero has no equipment, select this option
+      if (!hasEquipment) {
+        noEquipOption.selected = true;
+      }
+      nameSelect.appendChild(noEquipOption);
+      
       // Add options to select
       equipmentOptions.forEach(option => {
         const selectOption = document.createElement('option');
@@ -710,6 +706,29 @@ function showHeroEditorModal() {
         if (nameControl && statControl && tierControl && nameControl.portraitContainer) {
           // Get new equipment game ID
           const newEquipName = nameSelect.value;
+          
+          // Handle "No Equipment" selection
+          if (!newEquipName || newEquipName === '') {
+            // Clear the portrait container
+            while (nameControl.portraitContainer.firstChild) {
+              nameControl.portraitContainer.removeChild(nameControl.portraitContainer.firstChild);
+            }
+            
+            // Remove the portrait container from the DOM if it's attached
+            if (nameControl.portraitContainer.parentElement) {
+              nameControl.portraitContainer.parentElement.removeChild(nameControl.portraitContainer);
+            }
+            
+            // Disable stat and tier controls when no equipment is selected
+            statControl.select.disabled = true;
+            tierControl.input.disabled = true;
+            return;
+          }
+          
+          // Re-enable controls in case they were disabled
+          statControl.select.disabled = false;
+          tierControl.input.disabled = false;
+          
           const equipId = equipMap.get(newEquipName.toLowerCase());
           
           if (equipId) {
@@ -750,6 +769,10 @@ function showHeroEditorModal() {
         if (nameControl && statControl && tierControl && nameControl.portraitContainer) {
           // Get equipment game ID
           const equipName = nameControl.select.value;
+          
+          // Skip if no equipment or portrait is selected
+          if (!equipName || equipName === '') return;
+          
           const equipId = equipMap.get(equipName.toLowerCase());
           
           if (equipId) {
@@ -790,6 +813,10 @@ function showHeroEditorModal() {
         if (nameControl && statControl && tierControl && nameControl.portraitContainer) {
           // Get equipment game ID
           const equipName = nameControl.select.value;
+          
+          // Skip if no equipment or portrait is selected
+          if (!equipName || equipName === '') return;
+          
           const equipId = equipMap.get(equipName.toLowerCase());
           
           if (equipId) {
@@ -825,6 +852,12 @@ function showHeroEditorModal() {
       if (!hasEquipment && nameSelect.value) {
         const event = new Event('change');
         nameSelect.dispatchEvent(event);
+      }
+      
+      // Initialize stat/tier controls disabled state based on equipment selection
+      if (!hasEquipment || !equipName) {
+        statSelect.disabled = true;
+        tierInput.disabled = true;
       }
       
       statTierContainer.appendChild(statSelect);
@@ -907,7 +940,12 @@ function showHeroEditorModal() {
                 if (control.type === 'stat' && control.input) {
                   const boardIndex = control.index;
                   if (updatedBoardData.board[boardIndex] && updatedBoardData.board[boardIndex].monster) {
-                    updatedBoardData.board[boardIndex].monster[control.stat] = parseInt(control.input.value);
+                    // For level, convert to integer to ensure it's a number
+                    if (control.stat === 'level') {
+                      updatedBoardData.board[boardIndex].monster[control.stat] = parseInt(control.input.value, 10) || 1;
+                    } else {
+                      updatedBoardData.board[boardIndex].monster[control.stat] = parseInt(control.input.value);
+                    }
                   }
                 }
                 
@@ -922,8 +960,12 @@ function showHeroEditorModal() {
                     // Get the equipment name and data
                     const equipName = control.select.value;
                     
-                    // Only proceed if an equipment is selected
-                    if (equipName) {
+                    // Check if "No Equipment" is selected
+                    if (!equipName || equipName === '') {
+                      // Remove equipment from the board data
+                      delete updatedBoardData.board[boardIndex].equipment;
+                    } else {
+                      // Only proceed if an equipment is selected
                       const equipId = equipMap.get(equipName.toLowerCase());
                       
                       if (equipId) {
@@ -948,12 +990,43 @@ function showHeroEditorModal() {
                 if (piece.monster && piece.monster.name) {
                   piece.monster.name = piece.monster.name.toLowerCase();
                 }
+                
+                // Convert level to experience if it's different from original
+                if (piece.monster && piece.monster.level) {
+                  console.log(`Monster level before configure: ${piece.monster.level}`);
+                  // Calculate the experience needed for this level
+                  const expNeeded = globalThis.state.utils.expAtLevel(piece.monster.level);
+                  piece.monster.exp = expNeeded;
+                  console.log(`Calculated experience for level ${piece.monster.level}: ${expNeeded}`);
+                }
+              });
+              
+              // Add detailed debug logging
+              console.log('DETAILED BOARD DATA:');
+              updatedBoardData.board.forEach((piece, index) => {
+                console.log(`Piece ${index}:`, JSON.stringify(piece));
               });
               
               console.log('Updated board data:', updatedBoardData);
               
               // Apply the updated board data
-              const success = configureBoard(updatedBoardData);
+              console.log('About to call configureBoard with data:', updatedBoardData);
+
+              // Create a custom board configuration directly (test solution)
+              const testData = {
+                region: updatedBoardData.region,
+                map: updatedBoardData.map,
+                board: updatedBoardData.board.map(piece => {
+                  // Ensure level is properly set and force it to be a number
+                  if (piece.monster && piece.monster.level) {
+                    piece.monster.level = Number(piece.monster.level);
+                  }
+                  return piece;
+                })
+              };
+
+              console.log('Modified board data for testing:', testData);
+              const success = configureBoard(testData);
               
               if (success) {
                 // Show success message

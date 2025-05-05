@@ -241,13 +241,17 @@
 						console.warn(`Unknown monster name: ${monster.name}`);
 					}
 					
+					// Get the level from monster data if available, otherwise use default
+					const monsterLevel = monster.level || 1;
+					console.log(`configureBoard - Processing monster ${index} with level: ${monsterLevel}`);
+					
 					const pieceConfig = {
 						type: 'custom',
 						nickname: null,
 						tileIndex: piece.tile,
 						gameId: monsterGameId,
 						tier: 4,
-						level: 50,
+						level: monsterLevel, // Use the monster's level from data
 						genes: {
 							hp: monster.hp,
 							ad: monster.ad,
@@ -259,6 +263,8 @@
 						key: `fake-monster-${index}`,
 						direction: 'south',
 					};
+					
+					console.log(`configureBoard - Created pieceConfig with level: ${pieceConfig.level}`);
 					
 					const equip = piece.equipment;
 					if (equip) {
@@ -283,6 +289,14 @@
 				
 				const enemyTeamConfig = globalThis.state.utils.getBoardMonstersFromRoomId(mapId);
 				const boardConfig = [...enemyTeamConfig, ...playerTeamConfig];
+				
+				// Log the final board configuration
+				console.log('Final board configuration before sending to game:');
+				boardConfig.forEach((piece, index) => {
+					if (piece.type === 'custom') {
+						console.log(`Final board piece ${index} - Level: ${piece.level}, Type: ${piece.type}`);
+					}
+				});
 				
 				globalThis.state.board.send({
 					type: 'setState',
@@ -360,6 +374,12 @@
 				
 				const monsterName = monsterGameIdsToNames.get(monster.gameId);
 				
+				// Calculate monster level from experience
+				let monsterLevel = 1;
+				if (monster.exp && typeof globalThis.state.utils.expToCurrentLevel === 'function') {
+					monsterLevel = globalThis.state.utils.expToCurrentLevel(monster.exp);
+				}
+				
 				const equipId = piece.equipId ?? monster.equipId;
 				
 				// Create the base serialized object without equipment first
@@ -373,6 +393,8 @@
 						ap: monster.ap,
 						armor: monster.armor,
 						magicResist: monster.magicResist,
+						level: monsterLevel,     // Add level information
+						exp: monster.exp         // Add experience for precise level values
 					}
 				};
 				
@@ -436,42 +458,52 @@
 				
 				const monsterName = monsterGameIdsToNames.get(piece.gameId);
 				
-				if (!piece.equip || !piece.equip.gameId) {
-					console.warn('Piece has no equipment information');
-					return null;
-				}
+				// Get monster level - use piece.level directly if available
+				const monsterLevel = piece.level || 1;
 				
-				// Check if we need to initialize equipment maps
-				if (!equipmentGameIdsToNames.has(piece.equip.gameId)) {
-					console.warn(`Equipment name for game ID ${piece.equip.gameId} not found, attempting to reinitialize maps`);
-					initializeMaps();
-					
-					// Check again after initialization
-					if (!equipmentGameIdsToNames.has(piece.equip.gameId)) {
-						console.warn(`Equipment name for game ID ${piece.equip.gameId} still not found after reinitialization`);
-						return null;
-					}
+				// Calculate experience for this level if needed and if the utility function is available
+				let monsterExp = null;
+				if (typeof globalThis.state.utils.expAtLevel === 'function') {
+					monsterExp = globalThis.state.utils.expAtLevel(monsterLevel);
 				}
-				
-				const equipName = equipmentGameIdsToNames.get(piece.equip.gameId);
 				
 				const serialized = {
 					tile: piece.tileIndex,
 					monster: {
 						name: monsterName,
 						// Match the in-game UI order.
-						hp: piece.genes.hp,
-						ad: piece.genes.ad,
-						ap: piece.genes.ap,
-						armor: piece.genes.armor,
-						magicResist: piece.genes.magicResist,
-					},
-					equipment: {
+						hp: piece.genes?.hp || 1,
+						ad: piece.genes?.ad || 1,
+						ap: piece.genes?.ap || 1,
+						armor: piece.genes?.armor || 1,
+						magicResist: piece.genes?.magicResist || 1,
+						level: monsterLevel,       // Add level directly
+						exp: monsterExp            // Add calculated experience
+					}
+				};
+				
+				// Add equipment if available
+				if (piece.equip && piece.equip.gameId) {
+					// Check if we need to initialize equipment maps
+					if (!equipmentGameIdsToNames.has(piece.equip.gameId)) {
+						console.warn(`Equipment name for game ID ${piece.equip.gameId} not found, attempting to reinitialize maps`);
+						initializeMaps();
+						
+						// Check again after initialization
+						if (!equipmentGameIdsToNames.has(piece.equip.gameId)) {
+							console.warn(`Equipment name for game ID ${piece.equip.gameId} still not found after reinitialization`);
+							return serialized; // Return without equipment
+						}
+					}
+					
+					const equipName = equipmentGameIdsToNames.get(piece.equip.gameId);
+					serialized.equipment = {
 						name: equipName,
 						stat: piece.equip.stat,
 						tier: piece.equip.tier,
-					},
-				};
+					};
+				}
+				
 				return serialized;
 			} catch (error) {
 				console.error('Error in serializeCustomPiece:', error);

@@ -403,6 +403,65 @@ const abbaneSetup = globalThis.state.utils.getBoardMonstersFromRoomId('abbane');
 ]
 ```
 
+### Experience and Level Calculations
+
+The game provides utility functions for calculating experience points and levels:
+
+```javascript
+// Calculate experience points needed for a specific level
+const expForLevel5 = globalThis.state.utils.expAtLevel(5);
+console.log(expForLevel5); // 11250
+
+// Calculate level based on experience points
+const levelForExp = globalThis.state.utils.expToCurrentLevel(440425);
+console.log(levelForExp); // 25
+```
+
+### Player Flags
+
+The game uses a bitwise flag system for tracking player abilities and achievements:
+
+```javascript
+// Get player flags
+const playerFlags = globalThis.state.player.getSnapshot().context.flags;
+
+// Create Flags object for easier access
+const flags = new globalThis.state.utils.Flags(playerFlags);
+
+// Check if specific flags are set
+console.log(flags.isSet("sandbox")); // true or false
+console.log(flags.isSet("autoplay")); // true or false
+
+// Access flag values
+const autoplayFlagValue = globalThis.state.utils.Flags.getFlagValue("autoplay");
+console.log(autoplayFlagValue); // 65536
+
+// Example flag values:
+const flagDictionary = {
+    "banned": 0,
+    "premium": 1,
+    "alt": 2,
+    "storeBestiaryContainer": 3,
+    "monsterTier": 4,
+    "taskBestiaryContainer": 5,
+    "tutorialBestiaryContainer": 6,
+    "rookgaardDlc": 7,
+    "sandbox": 8,
+    "carlinDlc": 9,
+    "boostedMap": 10,
+    "yasir": 11,
+    "yasirBestiaryContainer": 12,
+    "monsterSqueezer": 13,
+    "forge": 14,
+    "autosetup": 15,
+    "autoplay": 16,
+    "genie": 17,
+    "achievSeashell": 18,
+    "achievCreature95": 19,
+    // ... and more
+};
+```
+
 Room and region data structures are detailed below:
 
 ```javascript
@@ -617,6 +676,22 @@ globalThis.state.board.send({
 globalThis.state.board.on('newGame', (event) => {
     console.log('New game started with seed:', event.world.RNG.seed);
     console.log('World object:', event.world);
+});
+```
+
+The board also emits specific events for game start and end:
+
+```javascript
+// Listen for game start event
+globalThis.state.board.on('emitNewGame', (event) => {
+    console.log('Game started:', event);
+    // Handle game start logic
+});
+
+// Listen for game end event
+globalThis.state.board.on('emitEndGame', (event) => {
+    console.log('Game ended:', event);
+    // Handle game end logic
 });
 ```
 

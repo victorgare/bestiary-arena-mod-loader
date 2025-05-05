@@ -61,7 +61,9 @@ const TRANSLATIONS = {
     noMapSelected: 'No map selected',
     maxTeamsReached: `Maximum of ${config.maxSetupsPerMap} teams per map reached`,
     invalidSetup: 'Invalid team setup',
-    noMonstersInSetup: 'No monsters in this setup'
+    noMonstersInSetup: 'No monsters in this setup',
+    autosetupRequired: 'Autosetup Required',
+    autosetupMessage: 'Setup Manager requires Autosetup Mode to be enabled.'
   },
   pt: {
     setupManager: 'Gerenciador de Times',
@@ -86,7 +88,9 @@ const TRANSLATIONS = {
     noMapSelected: 'Nenhum mapa selecionado',
     maxTeamsReached: `Máximo de ${config.maxSetupsPerMap} times por mapa atingido`,
     invalidSetup: 'Time inválido',
-    noMonstersInSetup: 'Nenhum monstro neste time'
+    noMonstersInSetup: 'Nenhum monstro neste time',
+    autosetupRequired: 'Modo Autosetup Necessário',
+    autosetupMessage: 'O Gerenciador de Times requer que o modo Autosetup esteja ativado.'
   }
 };
 
@@ -98,47 +102,6 @@ const currentLocale = document.documentElement.lang === 'pt' ||
 // Translate function
 const t = (key) => {
   return TRANSLATIONS[currentLocale][key] || TRANSLATIONS.en[key] || key;
-};
-
-// Replace the existing level calculation in getMonsterInfo with the provided one
-// Add these level calculation functions
-const ENEMY_XP_DROP_PER_LVL = 56.25; 
-const XP_RATE = 10;
-const ROOM_XP_DROP_PER_LEVEL = ENEMY_XP_DROP_PER_LVL * XP_RATE;
-
-const getLevelSteepness = (level) => 0.00970941 * Math.pow(1.14111, level) + 1;
-
-const expAtLevel = (level) => {
-  const steepness = level * getLevelSteepness(level);
-  const xpRequired = (level - 1) * ROOM_XP_DROP_PER_LEVEL;
-  const result = Math.round(steepness * xpRequired);
-  return result - (result % 250);
-};
-
-const levelFromExp = (exp) => {
-  if (exp <= 0) return 1;
-  
-  // Binary search to find the level
-  let minLevel = 1;
-  let maxLevel = 100; // Reasonable upper bound
-  
-  while (minLevel <= maxLevel) {
-    const midLevel = Math.floor((minLevel + maxLevel) / 2);
-    const expForMidLevel = expAtLevel(midLevel);
-    const expForNextLevel = expAtLevel(midLevel + 1);
-    
-    if (exp >= expForMidLevel && exp < expForNextLevel) {
-      return midLevel;
-    }
-    
-    if (exp < expForMidLevel) {
-      maxLevel = midLevel - 1;
-    } else {
-      minLevel = midLevel + 1;
-    }
-  }
-  
-  return minLevel;
 };
 
 // Calculate tier from monster stats
@@ -178,7 +141,7 @@ function getMonsterInfo(monsterId) {
       gameId: monster.gameId,
       tier: displayTier, // Use calculated tier for display
       actualTier: monster.tier, // Keep track of actual tier
-      level: levelFromExp(monster.exp),
+      level: globalThis.state.utils.expToCurrentLevel(monster.exp),
       stats: {
         hp: monster.hp,
         ad: monster.ad,
@@ -359,6 +322,21 @@ function loadTeamSetup(mapId, setupName, keepModalOpen = false) {
   try {
     if (!mapId) {
       console.error('No map ID provided for loading team setup');
+      return false;
+    }
+    
+    // Check if autosetup is enabled
+    const playerContext = globalThis.state.player.getSnapshot().context;
+    const playerFlags = playerContext.flags;
+    
+    // Create Flags object to check autosetup mode
+    const flags = new globalThis.state.utils.Flags(playerFlags);
+    if (!flags.isSet("autosetup")) {
+      api.ui.components.createModal({
+        title: t('autosetupRequired'),
+        content: t('autosetupMessage'),
+        buttons: [{ text: 'OK', primary: true }]
+      });
       return false;
     }
     
@@ -723,6 +701,21 @@ function createSetupCard(mapId, setupName, setupData) {
 // Show the main setup manager modal
 function showSetupManagerModal() {
   try {
+    // Check if autosetup is enabled
+    const playerContext = globalThis.state.player.getSnapshot().context;
+    const playerFlags = playerContext.flags;
+    
+    // Create Flags object to check autosetup mode
+    const flags = new globalThis.state.utils.Flags(playerFlags);
+    if (!flags.isSet("autosetup")) {
+      api.ui.components.createModal({
+        title: t('autosetupRequired'),
+        content: t('autosetupMessage'),
+        buttons: [{ text: 'OK', primary: true }]
+      });
+      return;
+    }
+    
     const mapId = getCurrentMapId();
     if (!mapId) {
       showNotification(t('noMapSelected'), 'error');
@@ -805,6 +798,21 @@ function showSaveSetupModal(mapId) {
   try {
     if (!mapId) {
       console.error('No map ID provided for saving team setup');
+      return;
+    }
+    
+    // Check if autosetup is enabled
+    const playerContext = globalThis.state.player.getSnapshot().context;
+    const playerFlags = playerContext.flags;
+    
+    // Create Flags object to check autosetup mode
+    const flags = new globalThis.state.utils.Flags(playerFlags);
+    if (!flags.isSet("autosetup")) {
+      api.ui.components.createModal({
+        title: t('autosetupRequired'),
+        content: t('autosetupMessage'),
+        buttons: [{ text: 'OK', primary: true }]
+      });
       return;
     }
     
@@ -924,6 +932,21 @@ function showSaveSetupModal(mapId) {
 // Show confirmation before deleting a setup
 function showDeleteConfirmation(mapId, setupName) {
   try {
+    // Check if autosetup is enabled
+    const playerContext = globalThis.state.player.getSnapshot().context;
+    const playerFlags = playerContext.flags;
+    
+    // Create Flags object to check autosetup mode
+    const flags = new globalThis.state.utils.Flags(playerFlags);
+    if (!flags.isSet("autosetup")) {
+      api.ui.components.createModal({
+        title: t('autosetupRequired'),
+        content: t('autosetupMessage'),
+        buttons: [{ text: 'OK', primary: true }]
+      });
+      return;
+    }
+    
     // Force close all open modals first
     forceCloseAllModals();
     

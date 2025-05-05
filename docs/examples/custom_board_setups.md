@@ -161,7 +161,7 @@ globalThis.state.board.send({
         },
         villain: true, // Enemy or ally
         key: "unique-key-1", // Must be unique
-        level: 15,    // Monster level
+        level: 15,    // Monster level (experience is calculated automatically)
         direction: "west", // Facing direction ("north", "east", "south", "west")
         tileIndex: 40, // Board position (0-63 for standard 8x8 boards)
       },
@@ -181,7 +181,7 @@ globalThis.state.board.send({
         },
         villain: false, // Friendly unit
         key: "unique-key-2",
-        level: 999,
+        level: 500,    // Very high level monster
         direction: "east",
         tileIndex: 23,
       },
@@ -189,6 +189,8 @@ globalThis.state.board.send({
   }),
 });
 ```
+
+When setting up custom entities, you can specify the monster's level directly using the `level` property. The game will automatically calculate the appropriate experience points for that level using `globalThis.state.utils.expAtLevel(level)`. This is useful for creating specific training scenarios or challenges with precise level requirements.
 
 This opens up many possibilities for custom scenarios, challenges, and training setups.
 
