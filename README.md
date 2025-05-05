@@ -223,6 +223,16 @@ Enhances the game's highscore display with additional statistics, improved sorti
 
 Contributions are welcome! If you have a mod you'd like to share or improvements to the extension, please read our [Contribution Guidelines](CONTRIBUTING.md).
 
+## Credits
+
+### Developers
+- [TheMegafuji](https://github.com/TheMegafuji/) (In-game name: **megafuji**)
+- [MathiasBynens](https://github.com/mathiasbynens) (In-game name: **mathiasbynens**)
+
+### Special Thanks
+This project has been developed with the express consent and approval of the original Bestiary Arena game developer:
+- [Alexandre Regali Seleghim (Xandjiji)](https://github.com/xandjiji)
+
 ## License
 
 This project is licensed under the MIT License. See the LICENSE file for details. 
