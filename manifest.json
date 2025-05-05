@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Bestiary Arena Mod Loader",
   "version": "1.0.0",
-  "description": "Enhance your Bestiary Arena gaming experience with custom mods! This extension allows you to easily load and manage community-created mods via GitHub Gist hashes or local files.",
+  "description": "Load and manage custom mods for Bestiary Arena easily through GitHub Gists or local files.",
   "icons": {
     "16": "assets/icons/icon-16.png",
     "48": "assets/icons/icon-34.png",
