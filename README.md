@@ -143,30 +143,81 @@ Mods have access to the game's state through `globalThis.state`, which provides 
 
 ## Example Mods
 
-The extension comes with several example mods to demonstrate different features:
+The extension comes with several powerful example mods that demonstrate different features:
 
 ### UI Components Showcase
 ![UI Components Showcase](docs/images/ui_showcase_example_mod.png)
 
-Demonstrates all available UI components provided by the mod loader, allowing developers to see how components look and function within the game's environment.
+Demonstrates all available UI components provided by the mod loader, allowing developers to see how components look and function within the game's environment. Includes examples of monster portraits, item portraits, room list items, and modals with proper styling.
+
+### Custom Display
+![Custom Display Settings](docs/images/custom_disply_settings.png)
+
+Enhances game visuals with two powerful features:
+- **Performance Mode**: Strips down graphics for better performance on low-end devices.
+  ![Performance Mode Applied](docs/images/performance_mode_applied.png)
+- **Map Grid**: Adds a coordinate grid overlay to help with positioning and planning.
+  ![Grid Layout Applied](docs/images/grid_layout_applied.png)
+
+Both features can be customized with extensive settings for colors, visibility, and display options.
+
+### Hero Editor
+![Hero Editor](docs/images/hero_editor.png)
+
+A powerful tool that allows players to:
+- Edit monster stats directly in the game
+- Modify equipment attributes (stat type, tier)
+- Apply changes instantly to the game board
+- Save and load custom setups
+
+Perfect for testing different monster and equipment combinations without having to collect and level them in-game.
+
+### Setup Manager
+![Setup Manager](docs/images/setup_manager.png)
+
+Allows players to save, load, and manage team configurations for different maps. Features include:
+- Multiple saved team setups per map
+- Easy switching between configurations
+- Automatic detection of map changes
+- Custom naming of team configurations
+- Integration with the game's auto-configure button
+
+### Team Copier
+![Team Copier](docs/images/team_copier.png)
+
+Enables sharing team configurations with other players through:
+- Copying team setup as JSON command
+- Generating sharable links (compact or readable)
+- Opening shared configurations in new windows
+- Optional inclusion of game seeds for exact replays
+- History of recently used seeds
 
 ### Monster Tier List
 ![Monster Tier List](docs/images/monster_usage_tier_list_mod.png)
 
-Analyzes monster usage patterns and displays statistics and rankings, helping players identify the most effective monsters for different scenarios.
+Analyzes monster usage patterns and displays statistics and rankings, helping players identify the most effective monsters for different scenarios. Features include:
+- Sortable tier list of monsters
+- Usage statistics across different room types
+- Win rate and performance metrics
+- Visual representation of monster effectiveness
 
 ### Item Tier List
 ![Item Tier List](docs/images/item_tier_lis_mod.png)
 
-Displays equipment statistics and rankings, allowing players to compare items and make informed decisions about their loadouts.
+Displays equipment statistics and rankings, allowing players to compare items and make informed decisions about their loadouts. The mod shows:
+- Item effectiveness by tier
+- Stat optimizations for different monsters
+- Best-in-slot recommendations
+- Visual quality indicators
 
 ### Highscore Improvements
 ![Highscore Improvements](docs/images/highscore_improvements_mod.png)
 
-Enhances the game's highscore display with additional statistics, improved sorting options, and visual enhancements.
-
-### Toggle Map Grid
-Adds a grid overlay to the game map, making it easier to identify precise positions and plan movements.
+Enhances the game's highscore display with additional statistics, improved sorting options, and visual enhancements. Features include:
+- Detailed performance analysis
+- Potential time improvements compared to top scores
+- Room-by-room breakdown of performance
+- Visual indicators for time differences
 
 ## Contributing
 
