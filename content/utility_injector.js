@@ -1,3 +1,8 @@
+// Polyfill for Chrome and Firefox WebExtensions
+if (typeof window.browser === 'undefined') {
+  window.browser = window.chrome;
+}
+
 // Utility Injector - Loads the utility functions directly from local file
 
 (function() {
@@ -10,7 +15,7 @@
     // Create and inject the script
     const script = document.createElement('script');
     script.type = 'module';
-    script.src = chrome.runtime.getURL('content/ba-sandbox-utils.mjs');
+    script.src = browserAPI.runtime.getURL('content/ba-sandbox-utils.mjs');
     
     // Handle script loading events
     script.onload = function() {

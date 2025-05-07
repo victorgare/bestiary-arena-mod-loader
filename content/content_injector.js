@@ -1,15 +1,21 @@
+// Polyfill for Chrome and Firefox WebExtensions
+const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
+if (typeof window.browser === 'undefined') {
+  window.browser = window.chrome;
+}
+
 // Content Script Injector for Bestiary Arena Mod Loader
 console.log('Content Script Injector initializing...');
 
 // Store the base URL for mods
-const modsBaseUrl = chrome.runtime.getURL('mods/');
+const modsBaseUrl = browserAPI.runtime.getURL('mods/');
 console.log('Mods base URL:', modsBaseUrl);
 
 // Script injection function
 function injectScript(filePath) {
   return new Promise((resolve) => {
     const script = document.createElement('script');
-    script.src = chrome.runtime.getURL(filePath);
+    script.src = browserAPI.runtime.getURL(filePath);
     script.type = filePath.endsWith('.mjs') ? 'module' : 'text/javascript';
     script.onload = function() {
       console.log(`Script ${filePath} injected and loaded`);
@@ -65,7 +71,7 @@ window.addEventListener('message', function(event) {
     
     if (event.data.message && event.data.message.action === 'registerLocalMods') {
       // Forward to background script
-      chrome.runtime.sendMessage(event.data.message, response => {
+      browserAPI.runtime.sendMessage(event.data.message, response => {
         console.log('Register mods response:', response);
         
         // Forward response back to page
@@ -81,7 +87,7 @@ window.addEventListener('message', function(event) {
     
     if (event.data.message && event.data.message.action === 'getLocalModConfig') {
       // Get mod configuration
-      chrome.runtime.sendMessage(event.data.message, response => {
+      browserAPI.runtime.sendMessage(event.data.message, response => {
         console.log('Get mod config response:', response);
         
         // Forward configuration to page
@@ -102,7 +108,7 @@ window.addEventListener('message', function(event) {
     console.log('Utility functions loaded in the page:', event.data.functions);
     
     // Notify other parts of the extension if needed
-    chrome.runtime.sendMessage({
+    browserAPI.runtime.sendMessage({
       action: 'utilityFunctionsLoaded',
       functions: event.data.functions
     });
@@ -114,11 +120,21 @@ console.log('Starting script injection sequence...');
 loadScripts();
 
 // Listen for messages from background script
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Content script received message:', message);
   
   if (message.action === 'executeLocalMod') {
     // Forward to page script
+    window.postMessage({
+      from: 'BESTIARY_EXTENSION',
+      message: message
+    }, '*');
+    
+    sendResponse({success: true});
+  }
+  
+  if (message.action === 'updateLocalModState') {
+    // Forward the mod state update to the page script
     window.postMessage({
       from: 'BESTIARY_EXTENSION',
       message: message

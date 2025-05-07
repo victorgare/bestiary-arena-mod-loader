@@ -1,3 +1,6 @@
+// Polyfill para Firefox/Chrome
+const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
+
 class Localization {
   constructor() {
     this.currentLocale = 'pt-BR';
@@ -9,7 +12,7 @@ class Localization {
 
   async init() {
     try {
-      const storage = await chrome.storage.local.get('locale');
+      const storage = await browserAPI.storage.local.get('locale');
       this.currentLocale = storage.locale || this.defaultLocale;
     } catch (error) {
       console.error('Erro ao carregar preferência de idioma:', error);
@@ -26,7 +29,7 @@ class Localization {
   async loadTranslations() {
     try {
       for (const locale of this.supportedLocales) {
-        const response = await fetch(chrome.runtime.getURL(`assets/locales/${locale}.json`));
+        const response = await fetch(browserAPI.runtime.getURL(`assets/locales/${locale}.json`));
         if (response.ok) {
           this.translations[locale] = await response.json();
         } else {
@@ -66,7 +69,7 @@ class Localization {
     this.currentLocale = locale;
     
     try {
-      await chrome.storage.local.set({ locale });
+      await browserAPI.storage.local.set({ locale });
     } catch (error) {
       console.error('Erro ao salvar preferência de idioma:', error);
     }
@@ -108,5 +111,4 @@ class Localization {
   }
 }
 
-const i18n = new Localization();
-export default i18n;
+window.i18n = new Localization();

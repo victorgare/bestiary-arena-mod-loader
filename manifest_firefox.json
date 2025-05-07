@@ -1,0 +1,71 @@
+{
+  "manifest_version": 2,
+  "name": "Bestiary Arena Mod Loader",
+  "version": "1.0.0",
+  "description": "Load and manage custom mods for Bestiary Arena easily through GitHub Gists or local files.",
+  "icons": {
+    "16": "assets/icons/icon-16.png",
+    "48": "assets/icons/icon-34.png",
+    "128": "assets/icons/icon-128.png"
+  },
+  "browser_action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "assets/icons/icon-16.png",
+      "34": "assets/icons/icon-34.png",
+      "128": "assets/icons/icon-128.png"
+    }
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.bestiaryarena.com/*", 
+        "*://bestiaryarena.com/*"
+      ],
+      "js": ["content/injector.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "*://*.bestiaryarena.com/*", 
+        "*://bestiaryarena.com/*"
+      ],
+      "js": ["content/utility_injector.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "permissions": [
+    "storage",
+    "tabs",
+    "*://*.bestiaryarena.com/*",
+    "*://bestiaryarena.com/*",
+    "https://*.bestiaryarena.com/*",
+    "https://bestiaryarena.com/*",
+    "http://*.bestiaryarena.com/*",
+    "http://bestiaryarena.com/*",
+    "*://*.gist.githubusercontent.com/*",
+    "*://gist.githubusercontent.com/*"
+  ],
+  "web_accessible_resources": [
+    "content/client.js", 
+    "content/local_mods.js", 
+    "content/utility_injector.js",
+    "content/ba-sandbox-utils.mjs",
+    "assets/icons/*", 
+    "assets/js/*",
+    "assets/fonts/*",
+    "assets/locales/*", 
+    "mods/*"
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "bestiaryarena-modloader@themegafuji.com",
+      "strict_min_version": "78.0"
+    }
+  }
+} 

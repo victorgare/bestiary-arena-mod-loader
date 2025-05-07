@@ -1,3 +1,11 @@
+// Polyfill for Chrome and Firefox WebExtensions
+const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
+
+// Existing polyfill
+if (typeof window === 'object' && typeof window.browser === 'undefined') {
+  window.browser = window.chrome;
+}
+
 const scriptCache = {};
 
 let localMods = [];
@@ -29,7 +37,7 @@ async function fetchScript(hash) {
     }
     
     scriptCache[hash] = scriptContent;
-    await chrome.storage.local.set({ [`script_${hash}`]: scriptContent });
+    await browserAPI.storage.local.set({ [`script_${hash}`]: scriptContent });
     
     return scriptContent;
   } catch (error) {
@@ -50,7 +58,7 @@ async function getScript(hash, forceRefresh = false) {
   }
   
   // Then try stored cache
-  const storedScripts = await chrome.storage.local.get(`script_${hash}`);
+  const storedScripts = await browserAPI.storage.local.get(`script_${hash}`);
   if (storedScripts[`script_${hash}`]) {
     scriptCache[hash] = storedScripts[`script_${hash}`];
     return scriptCache[hash];
@@ -61,27 +69,27 @@ async function getScript(hash, forceRefresh = false) {
 }
 
 async function getActiveScripts() {
-  const data = await chrome.storage.sync.get('activeScripts');
+  const data = await browserAPI.storage.sync.get('activeScripts');
   return data.activeScripts || [];
 }
 
 async function setActiveScripts(activeScripts) {
-  await chrome.storage.sync.set({ activeScripts });
+  await browserAPI.storage.sync.set({ activeScripts });
 }
 
 async function getLocalMods() {
   try {
     // First try to get from sync storage
-    const syncData = await chrome.storage.sync.get('localMods');
+    const syncData = await browserAPI.storage.sync.get('localMods');
     
     if (syncData.localMods && syncData.localMods.length > 0) {
       // If found in sync, also update local storage
-      await chrome.storage.local.set({ localMods: syncData.localMods });
+      await browserAPI.storage.local.set({ localMods: syncData.localMods });
       return syncData.localMods;
     }
     
     // Fall back to local storage
-    const localData = await chrome.storage.local.get('localMods');
+    const localData = await browserAPI.storage.local.get('localMods');
     return localData.localMods || [];
   } catch (error) {
     console.error('Error getting local mods:', error);
@@ -144,7 +152,7 @@ async function fetchUtilityScript() {
     const normalizedScript = normalizeUtilityScript(scriptContent);
     
     // Store in chrome.storage.local for caching instead of localStorage
-    await chrome.storage.local.set({
+    await browserAPI.storage.local.set({
       'utility_script_cache': normalizedScript,
       'utility_script_timestamp': Date.now()
     });
@@ -154,7 +162,7 @@ async function fetchUtilityScript() {
     console.error('Error fetching utility script:', error);
     
     // Try to use cached version if available from storage.local
-    const data = await chrome.storage.local.get(['utility_script_cache']);
+    const data = await browserAPI.storage.local.get(['utility_script_cache']);
     if (data.utility_script_cache) {
       return data.utility_script_cache;
     }
@@ -173,7 +181,7 @@ async function getUtilityScript(forceRefresh = false) {
     }
     
     // Get cached data from chrome.storage.local instead of localStorage
-    const data = await chrome.storage.local.get(['utility_script_cache', 'utility_script_timestamp']);
+    const data = await browserAPI.storage.local.get(['utility_script_cache', 'utility_script_timestamp']);
     const cachedScript = data.utility_script_cache;
     const timestamp = data.utility_script_timestamp;
     const cacheAge = timestamp ? (Date.now() - timestamp) : Infinity;
@@ -192,7 +200,28 @@ async function getUtilityScript(forceRefresh = false) {
   }
 }
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+console.log('Bestiary Arena Mod Loader - Background script initialized');
+console.log('Running in:', typeof browser !== 'undefined' ? 'Firefox' : 'Chrome');
+console.log('Using browserAPI:', typeof browserAPI);
+
+// Verificando permissões
+if (browserAPI.permissions) {
+  browserAPI.permissions.getAll().then(perms => {
+    console.log('Current permissions:', perms);
+  }).catch(error => {
+    console.error('Error checking permissions:', error);
+  });
+}
+
+// Verificando se estamos usando o polyfill correto
+try {
+  const extensionUrl = browserAPI.runtime.getURL('');
+  console.log('Extension base URL:', extensionUrl);
+} catch (error) {
+  console.error('Error getting extension URL:', error);
+}
+
+browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'getScript') {
     getScript(message.hash)
       .then(scriptContent => {
@@ -298,10 +327,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then(scripts => {
         if (message.hash && message.hash.startsWith('local_')) {
           const localModName = message.hash.replace('local_', '');
-          chrome.storage.local.get('localModsConfig', (data) => {
+          browserAPI.storage.local.get('localModsConfig', (data) => {
             const configs = data.localModsConfig || {};
             configs[localModName] = message.config;
-            chrome.storage.local.set({ localModsConfig: configs });
+            browserAPI.storage.local.set({ localModsConfig: configs });
             
             sendResponse({ success: true });
           });
@@ -364,8 +393,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.log('Background: Processed local mods with preserved states:', localMods);
       
       // Save to sync storage first, then to local
-      chrome.storage.sync.set({ localMods }, () => {
-        chrome.storage.local.set({ localMods }, () => {
+      browserAPI.storage.sync.set({ localMods }, () => {
+        browserAPI.storage.local.set({ localMods }, () => {
           sendResponse({ success: true, mods: localMods });
         });
       });
@@ -375,9 +404,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === 'executeLocalMod') {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    browserAPI.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, {
+        browserAPI.tabs.sendMessage(tabs[0].id, {
           action: 'executeLocalMod',
           name: message.name
         });
@@ -388,7 +417,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === 'executeScript') {
-    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+    browserAPI.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
       if (tabs[0]) {
         try {
           // Obter o conteúdo do script
@@ -408,7 +437,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
           
           // Enviar mensagem para o content script executar o script
-          chrome.tabs.sendMessage(tabs[0].id, {
+          browserAPI.tabs.sendMessage(tabs[0].id, {
             action: 'executeScript',
             hash: message.hash,
             scriptContent: scriptContent,
@@ -464,7 +493,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === 'getLocalModConfig') {
-    chrome.storage.local.get('localModsConfig', (data) => {
+    browserAPI.storage.local.get('localModsConfig', (data) => {
       const configs = data.localModsConfig || {};
       const config = configs[message.modName] || {};
       sendResponse({ success: true, config });
@@ -473,23 +502,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === 'toggleLocalMod') {
-    chrome.storage.local.get('localMods', (data) => {
+    browserAPI.storage.local.get('localMods', (data) => {
       const localMods = data.localMods || [];
       const modIndex = localMods.findIndex(mod => mod.name === message.name);
       
       if (modIndex !== -1) {
         localMods[modIndex].enabled = message.enabled;
-        chrome.storage.sync.set({ localMods }, () => {
-          chrome.storage.local.set({ localMods }, () => {
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        
+        console.log(`Toggling local mod ${message.name} to ${message.enabled}`);
+        
+        // First update browser sync storage
+        browserAPI.storage.sync.set({ localMods }, () => {
+          // Then update local storage
+          browserAPI.storage.local.set({ localMods }, () => {
+            // Then respond to confirm it's done
+            sendResponse({ success: true });
+            
+            // Finally notify active tabs about the change
+            browserAPI.tabs.query({ active: true, currentWindow: true }, (tabs) => {
               if (tabs[0]) {
-                chrome.tabs.sendMessage(tabs[0].id, {
-                  action: 'registerLocalMods',
-                  mods: localMods
+                browserAPI.tabs.sendMessage(tabs[0].id, {
+                  action: 'updateLocalModState',
+                  name: message.name,
+                  enabled: message.enabled
                 });
               }
             });
-            sendResponse({ success: true });
           });
         });
       } else {
@@ -520,7 +558,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     getActiveScripts().then(scripts => {
       const enabledScripts = scripts.filter(s => s.enabled);
       
-      chrome.tabs.sendMessage(sender.tab.id, {
+      browserAPI.tabs.sendMessage(sender.tab.id, {
         action: 'loadScripts',
         scripts: enabledScripts
       });
@@ -532,7 +570,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             localMods.map(m => `${m.name}: ${m.enabled}`));
           
           // Send registration message first
-          chrome.tabs.sendMessage(sender.tab.id, {
+          browserAPI.tabs.sendMessage(sender.tab.id, {
             action: 'registerLocalMods',
             mods: localMods
           });
@@ -541,7 +579,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           setTimeout(() => {
             localMods.filter(mod => mod.enabled).forEach(mod => {
               console.log(`Auto-executing local mod in ready tab: ${mod.name}`);
-              chrome.tabs.sendMessage(sender.tab.id, {
+              browserAPI.tabs.sendMessage(sender.tab.id, {
                 action: 'executeLocalMod',
                 name: mod.name
               });
@@ -563,7 +601,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+browserAPI.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url && tab.url.match(/bestiaryarena\.com/)) {
     console.log(`Tab ${tabId} updated with URL ${tab.url}`);
     
@@ -573,51 +611,106 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       
       // Delay slightly to ensure the page has fully loaded
       setTimeout(() => {
-        chrome.tabs.sendMessage(tabId, { action: 'checkAPI' }, response => {
-          if (chrome.runtime.lastError) {
-            console.log('Content script not functioning, injecting manually:', chrome.runtime.lastError);
+        browserAPI.tabs.sendMessage(tabId, { action: 'checkAPI' }, response => {
+          if (browserAPI.runtime.lastError) {
+            console.log('Content script not functioning, injecting manually:', browserAPI.runtime.lastError);
             
-            chrome.scripting.executeScript({
-              target: { tabId },
-              files: ['content/injector.js']
-            }).then(() => {
-              console.log('Injector script injected');
-              
-              setTimeout(() => {
-                // Use already refreshed scripts
-                console.log(`Sending ${enabledScripts.length} active scripts to tab ${tabId}`);
+            if (browserAPI.scripting) {
+              browserAPI.scripting.executeScript({
+                target: { tabId },
+                files: ['content/injector.js']
+              }).then(() => {
+                console.log('Injector script injected via scripting API');
                 
-                chrome.tabs.sendMessage(tabId, {
-                  action: 'loadScripts',
-                  scripts: enabledScripts
-                });
-
-                getLocalMods().then(localMods => {
-                  console.log(`Found ${localMods.length} local mods`, localMods);
+                setTimeout(() => {
+                  // Use already refreshed scripts
+                  console.log(`Sending ${enabledScripts.length} active scripts to tab ${tabId}`);
                   
-                  chrome.tabs.sendMessage(tabId, {
-                    action: 'registerLocalMods',
-                    mods: localMods
+                  browserAPI.tabs.sendMessage(tabId, {
+                    action: 'loadScripts',
+                    scripts: enabledScripts
                   });
-                  
-                  // Only execute enabled mods
-                  localMods.filter(mod => mod.enabled).forEach(mod => {
-                    console.log(`Auto-executing local mod: ${mod.name}`);
-                    chrome.tabs.sendMessage(tabId, {
-                      action: 'executeLocalMod',
-                      name: mod.name
+
+                  getLocalMods().then(localMods => {
+                    console.log(`Found ${localMods.length} local mods`, localMods);
+                    
+                    browserAPI.tabs.sendMessage(tabId, {
+                      action: 'registerLocalMods',
+                      mods: localMods
+                    });
+                    
+                    // Only execute enabled mods
+                    localMods.filter(mod => mod.enabled).forEach(mod => {
+                      console.log(`Auto-executing local mod: ${mod.name}`);
+                      browserAPI.tabs.sendMessage(tabId, {
+                        action: 'executeLocalMod',
+                        name: mod.name
+                      });
                     });
                   });
+                }, 1000);
+              }).catch(error => {
+                console.error("Error injecting injector script:", error);
+                console.error("Details:", error.message);
+                console.error("Current tab URL:", tab.url);
+                console.error("Make sure your extension has permission for this domain in the manifest.json");
+                
+                // Try using content script messaging instead as fallback
+                browserAPI.tabs.sendMessage(tabId, { action: 'initializeModLoader' }, response => {
+                  if (!browserAPI.runtime.lastError) {
+                    console.log("Successfully initialized mod loader via messaging");
+                  } else {
+                    console.error("Failed to initialize via messaging:", browserAPI.runtime.lastError);
+                  }
                 });
-              }, 1000);
-            }).catch(error => {
-              console.error("Error injecting injector script:", error);
-            });
+              });
+            } else {
+              // No Firefox, a API scripting pode não estar disponível no Manifest V2
+              console.log('scripting API not available, relying on content scripts');
+              
+              // Tentar usar messaging como fallback
+              browserAPI.tabs.sendMessage(tabId, { action: 'initializeModLoader' }, response => {
+                if (!browserAPI.runtime.lastError) {
+                  console.log("Successfully initialized mod loader via messaging");
+                  
+                  // Continue com o carregamento normal após inicialização
+                  setTimeout(() => {
+                    // Use already refreshed scripts
+                    console.log(`Sending ${enabledScripts.length} active scripts to tab ${tabId}`);
+                    
+                    browserAPI.tabs.sendMessage(tabId, {
+                      action: 'loadScripts',
+                      scripts: enabledScripts
+                    });
+
+                    getLocalMods().then(localMods => {
+                      console.log(`Found ${localMods.length} local mods`, localMods);
+                      
+                      browserAPI.tabs.sendMessage(tabId, {
+                        action: 'registerLocalMods',
+                        mods: localMods
+                      });
+                      
+                      // Only execute enabled mods
+                      localMods.filter(mod => mod.enabled).forEach(mod => {
+                        console.log(`Auto-executing local mod: ${mod.name}`);
+                        browserAPI.tabs.sendMessage(tabId, {
+                          action: 'executeLocalMod',
+                          name: mod.name
+                        });
+                      });
+                    });
+                  }, 1000);
+                } else {
+                  console.error("Failed to initialize via messaging:", browserAPI.runtime.lastError);
+                }
+              });
+            }
           } else {
             console.log('Content script already functioning, loading scripts');
             
             // Use already refreshed scripts
-            chrome.tabs.sendMessage(tabId, {
+            browserAPI.tabs.sendMessage(tabId, {
               action: 'loadScripts',
               scripts: enabledScripts
             });
@@ -627,7 +720,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                 localMods.map(m => `${m.name}: ${m.enabled}`));
               
               // Send registration message first
-              chrome.tabs.sendMessage(tabId, {
+              browserAPI.tabs.sendMessage(tabId, {
                 action: 'registerLocalMods',
                 mods: localMods
               });
@@ -637,7 +730,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                 // Only execute enabled mods
                 localMods.filter(mod => mod.enabled).forEach(mod => {
                   console.log(`Auto-executing local mod: ${mod.name}`);
-                  chrome.tabs.sendMessage(tabId, {
+                  browserAPI.tabs.sendMessage(tabId, {
                     action: 'executeLocalMod',
                     name: mod.name
                   });
@@ -652,18 +745,18 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 async function getTranslations() {
-  const localeData = await chrome.storage.local.get('locale');
+  const localeData = await browserAPI.storage.local.get('locale');
   const currentLocale = localeData.locale || 'en-US';
   
   const translations = {};
   
   try {
-    const enResponse = await fetch(chrome.runtime.getURL('assets/locales/en-US.json'));
+    const enResponse = await fetch(browserAPI.runtime.getURL('assets/locales/en-US.json'));
     if (enResponse.ok) {
       translations['en-US'] = await enResponse.json();
     }
     
-    const ptResponse = await fetch(chrome.runtime.getURL('assets/locales/pt-BR.json'));
+    const ptResponse = await fetch(browserAPI.runtime.getURL('assets/locales/pt-BR.json'));
     if (ptResponse.ok) {
       translations['pt-BR'] = await ptResponse.json();
     }
@@ -676,7 +769,7 @@ async function getTranslations() {
 
 async function setLocale(locale) {
   try {
-    await chrome.storage.local.set({ locale });
+    await browserAPI.storage.local.set({ locale });
     return true;
   } catch (error) {
     console.error('Error setting locale:', error);

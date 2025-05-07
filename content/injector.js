@@ -1,8 +1,11 @@
+// Polyfill para Firefox/Chrome
+const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
+
 function injectScript(file) {
   console.log(`Injecting script: ${file}`);
   const script = document.createElement('script');
   script.setAttribute('type', 'text/javascript');
-  script.setAttribute('src', chrome.runtime.getURL(file));
+  script.setAttribute('src', browserAPI.runtime.getURL(file));
   script.onload = function() {
     console.log(`Script loaded successfully: ${file}`);
     this.remove();
@@ -19,8 +22,8 @@ function injectExtensionURLs() {
   console.log('Injecting extension URLs into page');
   
   // Instead of using inline scripts (which violate CSP), use postMessage
-  const extensionBaseUrl = chrome.runtime.getURL('');
-  const modsBaseUrl = chrome.runtime.getURL('mods/');
+  const extensionBaseUrl = browserAPI.runtime.getURL('');
+  const modsBaseUrl = browserAPI.runtime.getURL('mods/');
   
   // Send URLs via postMessage which doesn't violate CSP
   window.postMessage({
@@ -62,7 +65,7 @@ clientScript.onload = function() {
       injectExtensionURLs();
       
       // Let the background script know we're ready for mods
-      chrome.runtime.sendMessage({ action: 'contentScriptReady' }, function(response) {
+      browserAPI.runtime.sendMessage({ action: 'contentScriptReady' }, function(response) {
         console.log('Background script notified that content script is ready');
       });
     };
@@ -80,7 +83,7 @@ window.addEventListener('message', function(event) {
   const message = event.data.message;
   
   if (message.action) {
-    chrome.runtime.sendMessage(message, function(response) {
+    browserAPI.runtime.sendMessage(message, function(response) {
       console.log('Received response from background script:', response);
       window.postMessage({
         from: 'BESTIARY_EXTENSION',
@@ -91,7 +94,7 @@ window.addEventListener('message', function(event) {
   }
 });
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Injector received message from extension:', message);
   
   if (message.action === 'checkAPI') {
@@ -128,7 +131,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }, '*');
     
     message.scripts.forEach(script => {
-      chrome.runtime.sendMessage({
+      browserAPI.runtime.sendMessage({
         action: 'getScript',
         hash: script.hash
       }, function(response) {
@@ -186,7 +189,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('Reloading local mods');
     
     // Resend mod base URL first
-    const modsBaseUrl = chrome.runtime.getURL('mods/');
+    const modsBaseUrl = browserAPI.runtime.getURL('mods/');
     window.postMessage({
       from: 'BESTIARY_EXTENSION',
       modBaseUrl: modsBaseUrl

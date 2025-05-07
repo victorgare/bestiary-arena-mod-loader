@@ -1,3 +1,8 @@
+// Polyfill for Chrome and Firefox WebExtensions
+if (typeof window.browser === 'undefined') {
+  window.browser = window.chrome;
+}
+
 (function() {
   if (window.BestiaryModAPI) return;
   
@@ -65,7 +70,12 @@
       
       const script = document.createElement('script');
       // Use the extension's local copy instead of trying to fetch from bestiaryarena.com
-      script.src = chrome.runtime.getURL('assets/js/ui_components.js');
+      try {
+        const runTime = browserAPI? browserAPI.runtime : (chrome? chrome.runtime : null);
+        script.src = runTime.getURL('assets/js/ui_components.js');
+      } catch (e) {
+        console.log('Error loading UI Components:', e);
+      }
       script.onload = () => {
         console.log('UI Components loaded successfully');
         
@@ -221,9 +231,10 @@
     const existingContainer = document.getElementById('bestiary-mod-buttons');
     if (existingContainer) return existingContainer;
     
-    const container = document.createElement('div');
-    container.id = 'bestiary-mod-buttons';
-    container.style.cssText = `
+    // Create a wrapper that will contain both the toggle button and the buttons container
+    const wrapper = document.createElement('div');
+    wrapper.id = 'bestiary-mod-buttons-wrapper';
+    wrapper.style.cssText = `
       position: fixed;
       bottom: 10px;
       right: 10px;
@@ -233,7 +244,70 @@
       z-index: 9999;
     `;
     
-    document.body.appendChild(container);
+    // Create the mod buttons container
+    const container = document.createElement('div');
+    container.id = 'bestiary-mod-buttons';
+    container.style.cssText = `
+      display: flex;
+      flex-direction: row;
+      gap: 10px;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      transform-origin: right center;
+    `;
+    
+    // Create toggle button
+    const toggleButton = document.createElement('button');
+    toggleButton.id = 'bestiary-mod-buttons-toggle';
+    toggleButton.textContent = '◀'; // Left arrow for "hide"
+    toggleButton.title = 'Hide mod buttons';
+    toggleButton.style.cssText = `
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      background: #333;
+      color: white;
+      align-self: center;
+    `;
+    
+    // Add toggle functionality
+    toggleButton._isVisible = true;
+    toggleButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      // We'll implement direct toggle here to avoid timing issues
+      const buttonsContainer = document.getElementById('bestiary-mod-buttons');
+      if (buttonsContainer) {
+        toggleButton._isVisible = !toggleButton._isVisible;
+        
+        if (toggleButton._isVisible) {
+          // Show buttons
+          buttonsContainer.style.opacity = '1';
+          buttonsContainer.style.transform = 'translateX(0)';
+          buttonsContainer.style.display = 'flex';
+          toggleButton.textContent = '◀'; // Left arrow for "hide"
+          toggleButton.title = 'Hide mod buttons';
+        } else {
+          // Hide buttons
+          buttonsContainer.style.opacity = '0';
+          buttonsContainer.style.transform = 'translateX(100%)'; // Move to the right, toward the toggle button
+          toggleButton.textContent = '▶'; // Right arrow for "show"
+          toggleButton.title = 'Show mod buttons';
+          
+          // Hide after transition completes
+          setTimeout(() => {
+            if (!toggleButton._isVisible) {
+              buttonsContainer.style.display = 'none';
+            }
+          }, 300);
+        }
+      }
+    });
+    
+    // Add elements to the DOM - container first, then toggle button
+    wrapper.appendChild(container);
+    wrapper.appendChild(toggleButton);
+    document.body.appendChild(wrapper);
+    
     return container;
   }
   
@@ -246,7 +320,7 @@
     container.id = 'bestiary-mod-configs';
     container.style.cssText = `
       position: fixed;
-      bottom: 70px;
+      bottom: 60px; /* Posicionado acima do wrapper de botões */
       right: 10px;
       z-index: 9999;
     `;
@@ -267,6 +341,11 @@
       
       // Fallback to game-styled implementation if UI Components aren't loaded
       const { title, content, buttons } = options || {};
+      
+      // Create overlay to capture clicks outside the modal
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 9998;';
+      document.body.appendChild(overlay);
       
       const modalEl = document.createElement('div');
       modalEl.setAttribute('role', 'dialog');
@@ -352,11 +431,20 @@
       // Add to document
       document.body.appendChild(modalEl);
       
-      return function closeModal() {
+      // Function to close the modal
+      function closeModal() {
         if (modalEl.parentNode) {
           document.body.removeChild(modalEl);
         }
-      };
+        if (overlay.parentNode) {
+          document.body.removeChild(overlay);
+        }
+      }
+      
+      // Add click event to overlay to close the modal
+      overlay.addEventListener('click', closeModal);
+      
+      return closeModal;
     },
     
     renderEntity: function(type, params) {
@@ -648,6 +736,46 @@
         return false;
       },
       
+      toggleModButtons: function(visible) {
+        const toggleButton = document.getElementById('bestiary-mod-buttons-toggle');
+        const buttonsContainer = document.getElementById('bestiary-mod-buttons');
+        
+        if (toggleButton && buttonsContainer) {
+          // If visible parameter is not specified, toggle current state
+          if (visible === undefined) {
+            visible = !toggleButton._isVisible;
+          }
+          
+          toggleButton._isVisible = visible;
+          
+          if (visible) {
+            // Show buttons
+            buttonsContainer.style.opacity = '1';
+            buttonsContainer.style.transform = 'translateX(0)';
+            buttonsContainer.style.display = 'flex';
+            toggleButton.textContent = '◀'; // Left arrow for "hide"
+            toggleButton.title = 'Hide mod buttons';
+          } else {
+            // Hide buttons
+            buttonsContainer.style.opacity = '0';
+            buttonsContainer.style.transform = 'translateX(100%)'; // Move to the right, toward the toggle button
+            toggleButton.textContent = '▶'; // Right arrow for "show"
+            toggleButton.title = 'Show mod buttons';
+            
+            // Hide after transition completes
+            setTimeout(() => {
+              if (!toggleButton._isVisible) {
+                buttonsContainer.style.display = 'none';
+              }
+            }, 300);
+          }
+          
+          return true;
+        }
+        
+        return false;
+      },
+      
       createConfigPanel: function(options) {
         if (window.BestiaryUIComponents) {
           const contentEl = document.createElement('div');
@@ -678,6 +806,12 @@
           existingPanel.parentNode.removeChild(existingPanel);
         }
         
+        // Create overlay to capture clicks outside the panel
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 9998;';
+        overlay.style.display = 'none';
+        document.body.appendChild(overlay);
+        
         const panel = document.createElement('div');
         panel.id = id;
         panel.className = 'bestiary-mod-config-panel';
@@ -690,6 +824,8 @@
           width: 350px;
           box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
           display: none;
+          z-index: 9999;
+          position: relative;
         `;
         
         if (title) {
@@ -743,16 +879,32 @@
         
         container.appendChild(panel);
         
+        // Add click event to overlay to close the panel
+        overlay.addEventListener('click', () => {
+          panel.style.display = 'none';
+          overlay.style.display = 'none';
+        });
+        
         return {
           element: panel,
-          show: () => { panel.style.display = 'block'; },
-          hide: () => { panel.style.display = 'none'; },
+          show: () => { 
+            panel.style.display = 'block'; 
+            overlay.style.display = 'block';
+          },
+          hide: () => { 
+            panel.style.display = 'none'; 
+            overlay.style.display = 'none';
+          },
           toggle: () => { 
             panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            overlay.style.display = overlay.style.display === 'none' ? 'block' : 'none';
           },
           remove: () => {
             if (panel.parentNode) {
               panel.parentNode.removeChild(panel);
+            }
+            if (overlay.parentNode) {
+              document.body.removeChild(overlay);
             }
           }
         };
@@ -765,7 +917,18 @@
           return;
         }
         
-        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        const isVisible = panel.style.display === 'none';
+        panel.style.display = isVisible ? 'block' : 'none';
+        
+        // Find and toggle the overlay
+        const overlays = document.querySelectorAll('div[style*="position: fixed"][style*="top: 0"][style*="left: 0"][style*="right: 0"][style*="bottom: 0"][style*="background: rgba(0, 0, 0, 0.5)"]');
+        if (overlays.length > 0) {
+          // Find the matching overlay (the one without a visible modal)
+          const overlay = Array.from(overlays).find(o => !o.nextElementSibling || o.nextElementSibling.style.display === 'none');
+          if (overlay) {
+            overlay.style.display = isVisible ? 'block' : 'none';
+          }
+        }
       },
       
       hideAllConfigPanels: function() {
@@ -773,12 +936,29 @@
         panels.forEach(panel => {
           panel.style.display = 'none';
         });
+        
+        // Hide all overlays
+        const overlays = document.querySelectorAll('div[style*="position: fixed"][style*="top: 0"][style*="left: 0"][style*="right: 0"][style*="bottom: 0"][style*="background: rgba(0, 0, 0, 0.5)"]');
+        overlays.forEach(overlay => {
+          overlay.style.display = 'none';
+        });
       },
       
       removeConfigPanel: function(id) {
         const panel = document.getElementById(id);
         if (panel && panel.parentNode) {
           panel.parentNode.removeChild(panel);
+          
+          // Remove associated overlay if exists
+          const overlays = document.querySelectorAll('div[style*="position: fixed"][style*="top: 0"][style*="left: 0"][style*="right: 0"][style*="bottom: 0"][style*="background: rgba(0, 0, 0, 0.5)"]');
+          overlays.forEach(overlay => {
+            if (!overlay.nextElementSibling || overlay.nextElementSibling.style.display === 'none') {
+              if (overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+              }
+            }
+          });
+          
           return true;
         }
         return false;

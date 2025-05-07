@@ -6,6 +6,8 @@ Welcome to the Bestiary Arena Mod Loader wiki! This guide explains what the mod 
 
 The Bestiary Arena Mod Loader is a browser extension that allows you to enhance your gameplay experience with custom mods. These mods add new features, tools, and visual improvements to the game without modifying the game files directly.
 
+[https://www.youtube.com/watch?v=ljcwCeqoop0 Watch the promotional video]
+
 [[File:Loader in Action.png|none|thumb|Mod Loader in Action]]
 
 == Installation Guide ==
@@ -121,7 +123,7 @@ Get more detailed information about your performance:
 == Frequently Asked Questions ==
 
 === Is this extension safe to use? ===
-Yes! The mod loader doesn't modify any game files directly. It only adds features to your browser's version of the game.
+Yes! The mod loader doesn't modify any game files directly. It only adds features to your browser's version of the game. In case you have any doubts, the source code is fully available for inspection and review on GitHub.
 
 === Will using mods get me banned? ===
 This mod loader is designed for enhancing single-player gameplay. It was all made with consent from Alexandre Regali Seleghim ([https://xandjiji.com/ Xandjiji]) which is the creator of [[Bestiaryarena Wiki|Bestiary Arena]].

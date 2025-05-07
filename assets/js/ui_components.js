@@ -5,6 +5,9 @@
  * These components can be used by mods to create consistent UIs.
  */
 
+// Polyfill para Firefox/Chrome
+const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
+
 (function() {
   const STYLES = {
     fonts: `
@@ -133,6 +136,19 @@
   function createModal({ title, width = 300, height = 'auto', content, buttons = [] }) {
     ensureStyles();
     
+    // Create overlay to capture clicks outside the modal
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 9998;
+    `;
+    document.body.appendChild(overlay);
+    
     const modal = document.createElement('div');
     modal.setAttribute('role', 'dialog');
     modal.className = 'auto-centered fixed shadow-lg outline-none pixel-font';
@@ -224,8 +240,16 @@
         if (modal.parentNode) {
           document.body.removeChild(modal);
         }
+        if (overlay.parentNode) {
+          document.body.removeChild(overlay);
+        }
       }
     };
+    
+    // Add click event to overlay to close the modal
+    overlay.addEventListener('click', () => {
+      modalObject.close();
+    });
     
     return modalObject;
   }

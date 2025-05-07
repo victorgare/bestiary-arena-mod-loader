@@ -1,4 +1,12 @@
-import i18n from '../assets/js/localization.js';
+// Polyfill para Firefox/Chrome
+const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
+
+// Polyfill for Chrome and Firefox WebExtensions
+if (typeof window.browser === 'undefined') {
+  window.browser = window.chrome;
+}
+
+const i18n = window.i18n;
 
 const hashForm = document.getElementById('hash-form');
 const hashInput = document.getElementById('hash-input');
@@ -34,7 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadActiveScripts() {
   try {
-    const response = await chrome.runtime.sendMessage({ action: 'getActiveScripts' });
+    const response = await browserAPI.runtime.sendMessage({ action: 'getActiveScripts' });
     
     if (response.success) {
       renderScripts(response.scripts);
@@ -46,9 +54,15 @@ async function loadActiveScripts() {
   }
 }
 
+// Track whether we're currently loading mods to prevent loops
+let isLoadingMods = false;
+
 async function loadLocalMods() {
+  if (isLoadingMods) return; // Prevent recursive calls
+  
+  isLoadingMods = true;
   try {
-    const response = await chrome.runtime.sendMessage({ action: 'getLocalMods' });
+    const response = await browserAPI.runtime.sendMessage({ action: 'getLocalMods' });
     
     if (response && response.success) {
       renderLocalMods(response.mods);
@@ -58,6 +72,8 @@ async function loadLocalMods() {
     }
   } catch (error) {
     showError('Erro ao comunicar com a extensão: ' + error.message);
+  } finally {
+    isLoadingMods = false;
   }
 }
 
@@ -286,7 +302,7 @@ function toggleConfigPanel(scriptCard, script) {
 
 async function addScript(hash, name) {
   try {
-    const response = await chrome.runtime.sendMessage({
+    const response = await browserAPI.runtime.sendMessage({
       action: 'registerScript',
       hash,
       name
@@ -308,7 +324,7 @@ async function addScript(hash, name) {
 
 async function toggleScript(hash, enabled) {
   try {
-    const response = await chrome.runtime.sendMessage({
+    const response = await browserAPI.runtime.sendMessage({
       action: 'toggleScript',
       hash,
       enabled
@@ -326,7 +342,7 @@ async function toggleScript(hash, enabled) {
 
 async function toggleLocalMod(name, enabled) {
   try {
-    const response = await chrome.runtime.sendMessage({
+    const response = await browserAPI.runtime.sendMessage({
       action: 'toggleLocalMod',
       name,
       enabled
@@ -344,7 +360,7 @@ async function toggleLocalMod(name, enabled) {
 
 async function executeLocalMod(name) {
   try {
-    const response = await chrome.runtime.sendMessage({
+    const response = await browserAPI.runtime.sendMessage({
       action: 'executeLocalMod',
       name
     });
@@ -359,7 +375,7 @@ async function executeLocalMod(name) {
 
 async function executeScript(hash) {
   try {
-    const response = await chrome.runtime.sendMessage({
+    const response = await browserAPI.runtime.sendMessage({
       action: 'executeScript',
       hash
     });
@@ -374,7 +390,7 @@ async function executeScript(hash) {
 
 async function updateScriptConfig(hash, config) {
   try {
-    const response = await chrome.runtime.sendMessage({
+    const response = await browserAPI.runtime.sendMessage({
       action: 'updateScriptConfig',
       hash,
       config
@@ -392,7 +408,7 @@ async function updateScriptConfig(hash, config) {
 
 async function removeScript(hash) {
   try {
-    const response = await chrome.runtime.sendMessage({
+    const response = await browserAPI.runtime.sendMessage({
       action: 'removeScript',
       hash
     });
@@ -411,12 +427,13 @@ function showError(message) {
   alert(message);
 }
 
-chrome.storage.onChanged.addListener((changes, area) => {
+browserAPI.storage.onChanged.addListener((changes, area) => {
   if (area === 'local') {
     if (changes.activeScripts) {
       loadActiveScripts();
     }
-    if (changes.localMods) {
+    if (changes.localMods && !isLoadingMods) {
+      // Only reload local mods if we're not already in the process of loading them
       loadLocalMods();
     }
     if (changes.locale) {
@@ -429,19 +446,19 @@ chrome.storage.onChanged.addListener((changes, area) => {
 document.getElementById('reload-mods-btn')?.addEventListener('click', async () => {
   await loadLocalMods();
   
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  browserAPI.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (tabs[0]) {
-      chrome.tabs.sendMessage(tabs[0].id, { action: 'reloadLocalMods' });
+      browserAPI.tabs.sendMessage(tabs[0].id, { action: 'reloadLocalMods' });
     }
   });
 });
 
 document.getElementById('check-api-btn')?.addEventListener('click', () => {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  browserAPI.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (tabs[0]) {
-      chrome.tabs.sendMessage(tabs[0].id, { action: 'checkAPI' }, (response) => {
-        if (chrome.runtime.lastError) {
-          showError('Error checking API: ' + chrome.runtime.lastError.message);
+      browserAPI.tabs.sendMessage(tabs[0].id, { action: 'checkAPI' }, (response) => {
+        if (browserAPI.runtime.lastError) {
+          showError('Error checking API: ' + browserAPI.runtime.lastError.message);
           return;
         }
         
@@ -459,16 +476,11 @@ document.getElementById('check-api-btn')?.addEventListener('click', () => {
 
 document.getElementById('log-storage-btn')?.addEventListener('click', async () => {
   try {
-    const localData = await chrome.storage.local.get(null);
-    const syncData = await chrome.storage.sync.get(null);
+    const localData = await browserAPI.storage.local.get(null);
+    const syncData = await browserAPI.storage.sync.get(null);
     
     alert('Storage contents logged to console');
   } catch (error) {
     showError('Error accessing storage: ' + error.message);
   }
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-  loadActiveScripts();
-  loadLocalMods();
 });
