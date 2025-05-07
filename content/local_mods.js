@@ -1,3 +1,8 @@
+// Polyfill for Chrome and Firefox WebExtensions
+if (typeof window.browser === 'undefined') {
+  window.browser = window.chrome;
+}
+
 console.log('Local Mods Loader initializing...');
 
 let localMods = [];
@@ -73,6 +78,8 @@ async function initLocalMods() {
     { name: "Hero_Editor.js", key: "Hero Editor", enabled: true },
     { name: "Setup_Manager.js", key: "Setup Manager", enabled: true },
     { name: "Custom_Display.js", key: "Custom Display", enabled: true },
+    { name: "Tick_Tracker.js", key: "Tick Tracker", enabled: true },
+    { name: "Bestiary_Automator.js", key: "Bestiary Automator", enabled: true },
     { name: "TestMod.js", key: "Test Mod", enabled: false }
   ];
   
@@ -333,6 +340,30 @@ window.addEventListener('message', function(event) {
       executeLocalMod(modName, force).catch(err => {
         console.error(`Error executing local mod ${modName} on request:`, err);
       });
+    }
+    
+    if (event.data.message && event.data.message.action === 'updateLocalModState') {
+      const modName = event.data.message.name;
+      const enabled = event.data.message.enabled;
+      console.log(`Updating local mod state: ${modName} -> ${enabled}`);
+      
+      // Find the mod in our local list and update its state
+      const modIndex = localMods.findIndex(mod => mod.name === modName);
+      if (modIndex !== -1) {
+        localMods[modIndex].enabled = enabled;
+        console.log(`Updated local mod state for ${modName} to ${enabled}`);
+        
+        // If mod was disabled, no action needed
+        // If mod was enabled, we should execute it if not already executed
+        if (enabled && !executedMods[modName]) {
+          console.log(`Auto-executing newly enabled mod: ${modName}`);
+          executeLocalMod(modName).catch(error => {
+            console.error(`Error auto-executing mod ${modName}:`, error);
+          });
+        }
+      } else {
+        console.error(`Cannot update state: mod ${modName} not found in local mods list`);
+      }
     }
     
     if (event.data.response && event.data.id && event.data.id.startsWith('mod_msg_')) {

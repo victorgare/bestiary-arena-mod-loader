@@ -42,7 +42,11 @@ const TRANSLATIONS = {
     copyReadableLink: 'Copy Readable Link (Longer)',
     openInNewWindow: 'Open in New Window',
     closeButton: 'Close',
-    saveButton: 'Save Settings'
+    saveButton: 'Save Settings',
+    loadTeam: 'Load Team Configuration',
+    pasteCommand: 'Paste team configuration command here...',
+    applyTeam: 'Apply Team Configuration',
+    teamApplied: 'Team configuration applied successfully!'
   },
   pt: {
     buttonTooltip: 'Copiador de Equipe',
@@ -64,7 +68,11 @@ const TRANSLATIONS = {
     copyReadableLink: 'Copiar Link Legível (Mais Longo)',
     openInNewWindow: 'Abrir em Nova Janela',
     closeButton: 'Fechar',
-    saveButton: 'Salvar Configurações'
+    saveButton: 'Salvar Configurações',
+    loadTeam: 'Carregar Configuração de Equipe',
+    pasteCommand: 'Cole o comando de configuração da equipe aqui...',
+    applyTeam: 'Aplicar Configuração da Equipe',
+    teamApplied: 'Configuração da equipe aplicada com sucesso!'
   }
 };
 
@@ -537,15 +545,8 @@ function showTeamCopierModal() {
   // Get board data once for all operations in the modal
   const boardData = serializeBoard();
   
-  if (!boardData) {
-    showNotification(t('errorMessage'), 'error');
-    return;
-  }
-  
-  if (!boardData.board || boardData.board.length === 0) {
-    showNotification('No player pieces found on the board', 'warning');
-    return;
-  }
+  // Track if we have valid board data with pieces
+  const hasValidBoardData = boardData && boardData.board && boardData.board.length > 0;
   
   // Create modal container
   const content = document.createElement('div');
@@ -561,149 +562,225 @@ function showTeamCopierModal() {
   const innerContent = document.createElement('div');
   innerContent.style.cssText = 'display: flex; flex-direction: column; gap: 15px; padding: 10px;';
   
-  // SECTION: Copy Team Setup
-  const copySection = createSection(t('copyTeamSetup'));
+  // SECTION: LOAD TEAM CONFIGURATION - Always show this section
+  const loadTeamSection = createSection(t('loadTeam'));
   
-  // Button to copy standard command
-  const copyButton = createActionButton(t('copyStandard'), () => {
-    const success = copyToClipboard(`$configureBoard(${JSON.stringify(boardData)})`);
-    if (success) {
-      showNotification(t('teamSetupCopied'), 'success');
-    } else {
-      showNotification(t('errorMessage'), 'error');
+  // Create a textarea for pasting team configuration command
+  const commandTextarea = document.createElement('textarea');
+  commandTextarea.placeholder = t('pasteCommand');
+  commandTextarea.style.cssText = 'width: 100%; min-height: 80px; background-color: #222; color: #fff; border: 1px solid #444; border-radius: 4px; padding: 8px; font-family: monospace; resize: vertical;';
+  
+  // Create button to apply the configuration
+  const applyButton = createActionButton(t('applyTeam'), () => {
+    // Get the command text from the textarea
+    const commandText = commandTextarea.value.trim();
+    
+    // Verify that the command is valid
+    if (!commandText) {
+      showNotification('Please paste a valid team configuration', 'warning');
+      return;
+    }
+    
+    try {
+      // Extract the JSON data from the command
+      let boardData;
+      
+      // Check if it's a configureBoard command
+      if (commandText.startsWith('$configureBoard(') && commandText.endsWith(')')) {
+        const jsonStr = commandText.substring('$configureBoard('.length, commandText.length - 1);
+        boardData = JSON.parse(jsonStr);
+      } 
+      // Check if it's a replay command
+      else if (commandText.startsWith('$replay(') && commandText.endsWith(')')) {
+        const jsonStr = commandText.substring('$replay('.length, commandText.length - 1);
+        boardData = JSON.parse(jsonStr);
+      } 
+      // If it's a raw JSON string
+      else {
+        try {
+          boardData = JSON.parse(commandText);
+        } catch (e) {
+          showNotification('Invalid command format. Please use $configureBoard() or $replay() format', 'error');
+          return;
+        }
+      }
+      
+      // Apply the configuration
+      applySharedTeamData(boardData);
+      
+      // Show success notification
+      showNotification(t('teamApplied'), 'success');
+      
+      // Close the modal
+      api.ui.closeModal();
+      
+      // Return early to prevent execution of code below that might throw an error
+      return;
+    } catch (error) {
+      console.error('Error parsing team configuration:', error);
+      showNotification('Invalid team configuration format', 'error');
     }
   });
   
-  copySection.appendChild(copyButton);
+  // Add elements to the section
+  loadTeamSection.appendChild(commandTextarea);
+  loadTeamSection.appendChild(applyButton);
   
-  // Add seed selection section if we have any saved seeds
-  if (config.lastUsedSeeds && config.lastUsedSeeds.length > 0) {
-    const seedTitle = document.createElement('h4');
-    seedTitle.textContent = t('seedSectionTitle');
-    seedTitle.style.cssText = 'margin-top: 15px; margin-bottom: 10px; color: #bbb; font-size: 14px;';
+  // Only add other sections if we have valid board data
+  if (hasValidBoardData) {
+    // SECTION: Copy Team Setup
+    const copySection = createSection(t('copyTeamSetup'));
     
-    copySection.appendChild(seedTitle);
-    
-    // Create buttons for each seed
-    config.lastUsedSeeds.forEach(seed => {
-      const seedButton = createSeedButton(seed, boardData);
-      copySection.appendChild(seedButton);
+    // Button to copy standard command
+    const copyButton = createActionButton(t('copyStandard'), () => {
+      const success = copyToClipboard(`$configureBoard(${JSON.stringify(boardData)})`);
+      if (success) {
+        showNotification(t('teamSetupCopied'), 'success');
+      } else {
+        showNotification(t('errorMessage'), 'error');
+      }
     });
+    
+    copySection.appendChild(copyButton);
+    
+    // Add seed selection section if we have any saved seeds
+    if (config.lastUsedSeeds && config.lastUsedSeeds.length > 0) {
+      const seedTitle = document.createElement('h4');
+      seedTitle.textContent = t('seedSectionTitle');
+      seedTitle.style.cssText = 'margin-top: 15px; margin-bottom: 10px; color: #bbb; font-size: 14px;';
+      
+      copySection.appendChild(seedTitle);
+      
+      // Create buttons for each seed
+      config.lastUsedSeeds.forEach(seed => {
+        const seedButton = createSeedButton(seed, boardData);
+        copySection.appendChild(seedButton);
+      });
+    }
+    
+    // SECTION: Share Setup
+    const shareSection = createSection(t('shareSetup'));
+    
+    // Button to copy compressed link
+    const copyCompressedButton = createActionButton(t('copyCompressedLink'), () => {
+      // Always use compression for the compressed link
+      const useOriginalSetting = config.useCompression;
+      config.useCompression = true;
+      
+      const link = createCompressedLink(boardData);
+      if (link) {
+        const success = copyToClipboard(link);
+        if (success) {
+          showNotification(t('linkCopied'), 'success');
+        } else {
+          showNotification(t('errorMessage'), 'error');
+        }
+      }
+      
+      // Restore original setting
+      config.useCompression = useOriginalSetting;
+    });
+    
+    // Button to copy readable link
+    const copyReadableButton = createActionButton(t('copyReadableLink'), () => {
+      const link = createReadableLink(boardData);
+      if (link) {
+        const success = copyToClipboard(link);
+        if (success) {
+          showNotification(t('linkCopied'), 'success');
+        } else {
+          showNotification(t('errorMessage'), 'error');
+        }
+      }
+    });
+    
+    // Button to open in new window
+    const openWindowButton = createActionButton(t('openInNewWindow'), () => {
+      let link;
+      if (config.useCompression) {
+        link = createCompressedLink(boardData);
+      } else {
+        link = createReadableLink(boardData);
+      }
+      
+      if (link) {
+        window.open(link, '_blank');
+        showNotification(t('linkOpened'), 'success');
+      }
+    });
+    
+    shareSection.appendChild(copyCompressedButton);
+    shareSection.appendChild(copyReadableButton);
+    shareSection.appendChild(openWindowButton);
+    
+    // SECTION: Settings
+    const settingsSection = createSection(t('settings'));
+    
+    // Include seed checkbox
+    const seedContainer = createCheckboxContainer();
+    
+    const seedCheckbox = document.createElement('input');
+    seedCheckbox.type = 'checkbox';
+    seedCheckbox.id = 'include-seed-checkbox';
+    seedCheckbox.checked = config.includeSeed;
+    seedCheckbox.style.cssText = 'width: 16px; height: 16px; margin-right: 10px;';
+    
+    const seedLabel = document.createElement('label');
+    seedLabel.htmlFor = 'include-seed-checkbox';
+    seedLabel.textContent = t('includeSeedLabel');
+    
+    seedContainer.appendChild(seedCheckbox);
+    seedContainer.appendChild(seedLabel);
+    
+    // Compression checkbox
+    const compressionContainer = createCheckboxContainer();
+    
+    const compressionCheckbox = document.createElement('input');
+    compressionCheckbox.type = 'checkbox';
+    compressionCheckbox.id = 'use-compression-checkbox';
+    compressionCheckbox.checked = config.useCompression;
+    compressionCheckbox.style.cssText = 'width: 16px; height: 16px; margin-right: 10px;';
+    
+    const compressionLabel = document.createElement('label');
+    compressionLabel.htmlFor = 'use-compression-checkbox';
+    compressionLabel.textContent = t('useCompressionLabel');
+    
+    compressionContainer.appendChild(compressionCheckbox);
+    compressionContainer.appendChild(compressionLabel);
+    
+    // Save settings button
+    const saveSettingsButton = createActionButton(t('saveButton'), () => {
+      // Update config with form values
+      config.includeSeed = document.getElementById('include-seed-checkbox').checked;
+      config.useCompression = document.getElementById('use-compression-checkbox').checked;
+      
+      // Save configuration
+      api.service.updateScriptConfig(context.hash, {
+        includeSeed: config.includeSeed,
+        useCompression: config.useCompression
+      });
+      
+      showNotification('Settings saved', 'success');
+    });
+    
+    settingsSection.appendChild(seedContainer);
+    settingsSection.appendChild(compressionContainer);
+    settingsSection.appendChild(saveSettingsButton);
+    
+    // Add all sections to the inner content
+    innerContent.appendChild(copySection);
+    innerContent.appendChild(shareSection);
+    innerContent.appendChild(settingsSection);
+  } else if (!hasValidBoardData) {
+    // Add a message when there are no pieces on the board
+    const noTeamMessage = document.createElement('div');
+    noTeamMessage.textContent = 'No player pieces found on the board. Paste a team configuration above to load a team.';
+    noTeamMessage.style.cssText = 'padding: 10px; color: #aaa; text-align: center; margin-top: 10px; font-style: italic;';
+    loadTeamSection.appendChild(noTeamMessage);
   }
   
-  // SECTION: Share Setup
-  const shareSection = createSection(t('shareSetup'));
-  
-  // Button to copy compressed link
-  const copyCompressedButton = createActionButton(t('copyCompressedLink'), () => {
-    // Always use compression for the compressed link
-    const useOriginalSetting = config.useCompression;
-    config.useCompression = true;
-    
-    const link = createCompressedLink(boardData);
-    if (link) {
-      const success = copyToClipboard(link);
-      if (success) {
-        showNotification(t('linkCopied'), 'success');
-      } else {
-        showNotification(t('errorMessage'), 'error');
-      }
-    }
-    
-    // Restore original setting
-    config.useCompression = useOriginalSetting;
-  });
-  
-  // Button to copy readable link
-  const copyReadableButton = createActionButton(t('copyReadableLink'), () => {
-    const link = createReadableLink(boardData);
-    if (link) {
-      const success = copyToClipboard(link);
-      if (success) {
-        showNotification(t('linkCopied'), 'success');
-      } else {
-        showNotification(t('errorMessage'), 'error');
-      }
-    }
-  });
-  
-  // Button to open in new window
-  const openWindowButton = createActionButton(t('openInNewWindow'), () => {
-    let link;
-    if (config.useCompression) {
-      link = createCompressedLink(boardData);
-    } else {
-      link = createReadableLink(boardData);
-    }
-    
-    if (link) {
-      window.open(link, '_blank');
-      showNotification(t('linkOpened'), 'success');
-    }
-  });
-  
-  shareSection.appendChild(copyCompressedButton);
-  shareSection.appendChild(copyReadableButton);
-  shareSection.appendChild(openWindowButton);
-  
-  // SECTION: Settings
-  const settingsSection = createSection(t('settings'));
-  
-  // Include seed checkbox
-  const seedContainer = createCheckboxContainer();
-  
-  const seedCheckbox = document.createElement('input');
-  seedCheckbox.type = 'checkbox';
-  seedCheckbox.id = 'include-seed-checkbox';
-  seedCheckbox.checked = config.includeSeed;
-  seedCheckbox.style.cssText = 'width: 16px; height: 16px; margin-right: 10px;';
-  
-  const seedLabel = document.createElement('label');
-  seedLabel.htmlFor = 'include-seed-checkbox';
-  seedLabel.textContent = t('includeSeedLabel');
-  
-  seedContainer.appendChild(seedCheckbox);
-  seedContainer.appendChild(seedLabel);
-  
-  // Compression checkbox
-  const compressionContainer = createCheckboxContainer();
-  
-  const compressionCheckbox = document.createElement('input');
-  compressionCheckbox.type = 'checkbox';
-  compressionCheckbox.id = 'use-compression-checkbox';
-  compressionCheckbox.checked = config.useCompression;
-  compressionCheckbox.style.cssText = 'width: 16px; height: 16px; margin-right: 10px;';
-  
-  const compressionLabel = document.createElement('label');
-  compressionLabel.htmlFor = 'use-compression-checkbox';
-  compressionLabel.textContent = t('useCompressionLabel');
-  
-  compressionContainer.appendChild(compressionCheckbox);
-  compressionContainer.appendChild(compressionLabel);
-  
-  // Save settings button
-  const saveSettingsButton = createActionButton(t('saveButton'), () => {
-    // Update config with form values
-    config.includeSeed = document.getElementById('include-seed-checkbox').checked;
-    config.useCompression = document.getElementById('use-compression-checkbox').checked;
-    
-    // Save configuration
-    api.service.updateScriptConfig(context.hash, {
-      includeSeed: config.includeSeed,
-      useCompression: config.useCompression
-    });
-    
-    showNotification('Settings saved', 'success');
-  });
-  
-  settingsSection.appendChild(seedContainer);
-  settingsSection.appendChild(compressionContainer);
-  settingsSection.appendChild(saveSettingsButton);
-  
-  // Add all sections to the inner content
-  innerContent.appendChild(copySection);
-  innerContent.appendChild(shareSection);
-  innerContent.appendChild(settingsSection);
+  // Always add the load team section first
+  innerContent.appendChild(loadTeamSection);
   
   // Add inner content to scroll container
   scrollContainer.addContent(innerContent);
@@ -867,9 +944,11 @@ function applySharedTeamData(boardData) {
     // Show success notification
     showTeamLoadedNotification(boardData);
     
-    // Clear the data after usage
-    localStorage.removeItem('BESTIARY_REPLAY_DATA');
-    localStorage.removeItem('BESTIARY_LOADED_WITH_SHARE');
+    // Clear the localStorage data after usage only if it exists
+    if (localStorage.getItem('BESTIARY_REPLAY_DATA')) {
+      localStorage.removeItem('BESTIARY_REPLAY_DATA');
+      localStorage.removeItem('BESTIARY_LOADED_WITH_SHARE');
+    }
   } catch (error) {
     console.error('Error applying shared team data:', error);
     showNotification('Error applying shared team data', 'error');
