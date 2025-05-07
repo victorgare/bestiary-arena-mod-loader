@@ -73,7 +73,8 @@ async function initLocalMods() {
     { name: "Hero_Editor.js", key: "Hero Editor", enabled: true },
     { name: "Setup_Manager.js", key: "Setup Manager", enabled: true },
     { name: "Custom_Display.js", key: "Custom Display", enabled: true },
-    { name: "TestMod.js", key: "Test Mod", enabled: false }
+    { name: "TestMod.js", key: "Test Mod", enabled: false },
+    { name: "Sandbox_Improvements.js", key: "Sandbox Improvements", enabled: false }
   ];
   
   let validMods = [];
